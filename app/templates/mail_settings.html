@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <h1>Correo</h1>
+  <p>Configuracion SMTP y plantilla de mensaje por defecto.</p>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="grid two">
+  <form method="post" action="/mail" class="stack status-panel">
+    <label>
+      SMTP host
+      <input name="smtp_host" value="{{ settings.smtp_host }}" required>
+    </label>
+    <label>
+      SMTP puerto
+      <input type="number" name="smtp_port" value="{{ settings.smtp_port }}" required>
+    </label>
+    <label>
+      SMTP usuario
+      <input name="smtp_username" value="{{ settings.smtp_username }}">
+    </label>
+    <label>
+      SMTP clave
+      <input type="password" name="smtp_password" value="{{ settings.smtp_password }}">
+    </label>
+    <label>
+      Email remitente
+      <input name="smtp_from_email" value="{{ settings.smtp_from_email }}">
+    </label>
+    <label>
+      Nombre remitente
+      <input name="smtp_from_name" value="{{ settings.smtp_from_name }}">
+    </label>
+    <label>
+      Concurrencia de lote (1-20)
+      <input type="number" name="crm_batch_workers" min="1" max="20" value="{{ settings.crm_batch_workers }}">
+    </label>
+    <label>
+      Asunto por defecto
+      <input name="smtp_subject" value="{{ settings.smtp_subject }}">
+    </label>
+    <label>
+      Plantilla por defecto
+      <textarea name="smtp_message_template" rows="10">{{ settings.smtp_message_template }}</textarea>
+    </label>
+    <div class="emoji-picks">
+      <span class="hint">Emojis rápidos:</span>
+      <button type="button" class="small emoji-btn" data-emoji="👋">👋</button>
+      <button type="button" class="small emoji-btn" data-emoji="🎓">🎓</button>
+      <button type="button" class="small emoji-btn" data-emoji="🔑">🔑</button>
+      <button type="button" class="small emoji-btn" data-emoji="📚">📚</button>
+      <button type="button" class="small emoji-btn" data-emoji="✅">✅</button>
+    </div>
+    <button type="submit">Guardar configuracion</button>
+  </form>
+
+  <aside class="status-panel">
+    <h2>Variables disponibles</h2>
+    <ul class="hint-list">
+      <li><code>{full_name}</code></li>
+      <li><code>{upn}</code></li>
+      <li><code>{password}</code></li>
+    </ul>
+    <p class="hint">Concurrencia recomendada: 4 a 8. Si Azure o Moodle responden lento, bajar el valor.</p>
+    <p class="hint">En la importacion podes sobrescribir asunto y mensaje para cada matriculacion masiva.</p>
+  </aside>
+</section>
+<script>
+  (function () {
+    const textarea = document.querySelector("textarea[name='smtp_message_template']");
+    if (!textarea) return;
+    const buttons = document.querySelectorAll(".emoji-btn");
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        const emoji = button.dataset.emoji || "";
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const text = textarea.value;
+        textarea.value = text.slice(0, start) + emoji + text.slice(end);
+        const pos = start + emoji.length;
+        textarea.focus();
+        textarea.setSelectionRange(pos, pos);
+      });
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+.ingreso-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.ingreso-toolbar h1,.ingreso-toolbar h2 { margin:0; }
+.ingreso-band { padding:18px 0; border-block:1px solid var(--line); margin:18px 0; }
+.ingreso-mode { border-left:4px solid #af6e00; padding:10px 14px; color:#775000; background:#fff6dc; }
+.ingreso-campaign { flex:1; max-width:760px; min-width:0; }
+.ingreso-campaign select { max-width:100%; }
+.ingreso-counts { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; padding:16px 0; }
+.ingreso-counts span { color:var(--muted); font-size:13px; }
+.ingreso-counts strong { display:block; font-size:24px; }
+.ingreso-tabs { display:flex; flex-wrap:wrap; border-bottom:1px solid var(--line); margin:18px 0; }
+.ingreso-tabs a { padding:12px 16px; border-bottom:3px solid transparent; }
+.ingreso-tabs [aria-current=page] { border-color:var(--accent); background:#eaf3fa; }
+.ingreso-filter { display:flex; flex-wrap:wrap; align-items:end; gap:14px; margin:18px 0; }
+.ingreso-filter label:first-of-type { flex:1; min-width:180px; }
+.ingreso-table { min-width:0; width:100%; table-layout:fixed; border-collapse:collapse; background:var(--panel); font-size:14px; }
+.ingreso-table td,.ingreso-table th { padding:12px 10px; vertical-align:top; text-align:left; white-space:normal; overflow-wrap:anywhere; border-bottom:1px solid var(--line); }
+.ingreso-table th { text-transform:uppercase; font-size:12px; color:var(--muted); }
+.ingreso-table p { margin:8px 0 0; }
+.ingreso-table small { color:var(--muted); font-size:12px; }
+.ingreso-table input[type=checkbox] { width:17px; height:17px; min-height:0; }
+.ingreso-registration + .ingreso-registration { border-top:1px solid var(--line); padding-top:8px; margin-top:8px; }
+.ingreso-status { display:inline-block; font-size:12px; color:#45565b; background:#edf1f2; padding:2px 6px; margin-top:6px; }
+.ingreso-warning { color:#956200; }
+.ingreso-destination { display:inline-block; margin:0 8px 6px 0; padding:3px 6px; background:#edf6f2; color:#136749; }
+.ingreso-pagination { display:flex; gap:20px; justify-content:flex-end; align-items:center; margin:18px 0; }
+.ingreso-accounting { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:32px; }
+.ingreso-rule { display:grid; grid-template-columns:minmax(100px,1fr) minmax(100px,1fr); align-items:center; gap:20px; margin-bottom:12px; }
+.ingreso-rules input,.ingreso-rules select { min-width:0; width:100%; padding:8px; }
+.ingreso-settings > .ingreso-toolbar { margin-bottom:20px; }
+.ingreso-target + .ingreso-target { margin-top:7px; }
+[data-ingreso-progress] progress { width:100%; height:14px; accent-color:var(--accent); }
+@media(max-width:750px) {
+  .ingreso-counts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ingreso-accounting { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .ingreso-table colgroup,.ingreso-table thead { display:none; }
+  .ingreso-table,.ingreso-table tbody,.ingreso-table tr,.ingreso-table td { display:block; width:100%; }
+  .ingreso-table tr { border-bottom:2px solid var(--line); padding:8px 0; }
+  .ingreso-table td { border:0; padding:6px 10px; }
+  .ingreso-table td[data-label]::before { content:attr(data-label); display:block; color:var(--muted); font-size:12px; }
+  .ingreso-toolbar button { max-width:100%; white-space:normal; }
+}

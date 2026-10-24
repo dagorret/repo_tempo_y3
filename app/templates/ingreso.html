@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block shell_class %}shell-wide{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/ingreso.css">
+<header class="ingreso-toolbar"><div><h1>Ingreso</h1><span class="hint">SIAL &middot; Microsoft 365 &middot; Moodle</span></div><a href="/settings/ingreso{% if campaign %}?campaign_id={{ campaign.id }}{% endif %}">Configuraci&oacute;n de Ingreso</a></header>
+{% if not write_enabled %}<p class="ingreso-mode">Modo preparaci&oacute;n. Creaci&oacute;n de cuentas, matr&iacute;culas y env&iacute;o de correos deshabilitados.</p>{% endif %}
+{% if message %}<p class="alert" role="status">{{ message }}</p>{% endif %}
+<section class="ingreso-toolbar ingreso-band">
+  <form method="get" class="ingreso-campaign"><label>Campa&ntilde;a<select name="campaign_id" onchange="this.form.submit()">{% for c in campaigns %}<option value="{{ c.id }}" {% if campaign.id == c.id %}selected{% endif %}>{{ c.name }} &middot; {{ c.start_date }} / {{ c.end_date }}</option>{% else %}<option>Sin campa&ntilde;as</option>{% endfor %}</select></label></form>
+  {% if campaign %}<form method="post" action="/ingreso/{{ campaign.id }}/prepare/sync"><input type="hidden" name="token" value="{{ csrf }}"><button {% if active %}disabled{% endif %}>Actualizar desde SIAL</button></form>{% else %}<a class="button-link" href="/settings/ingreso">Crear campa&ntilde;a</a>{% endif %}
+</section>
+{% if campaign %}
+{% if counts.pending_sync %}<p class="alert" role="status">Per&iacute;odo modificado. Datos anteriores pendientes de actualizar desde SIAL.</p>{% endif %}
+{% if active %}<section class="ingreso-band" data-ingreso-progress="/ingreso/jobs/{{ active.id }}/progress"><a href="/ingreso/jobs/{{ active.id }}">{{ kinds[active.kind] }} #{{ active.id }}</a><p data-job-message role="status">{{ active.message }}</p><progress aria-label="Progreso" max="{{ active.total or 1 }}" value="{{ active.processed }}"></progress></section>{% endif %}
+<section class="ingreso-counts" aria-label="Estudiantes"><div><span>Personas &uacute;nicas</span><strong>{{ counts.total }}</strong></div><div><span>Vistos en &uacute;ltima consulta</span><strong>{{ counts.current }}</strong></div>{% for s in ['preinscriptos','aspirantes','ingresantes'] %}<div><span>{{ s|capitalize }}</span><strong>{{ counts[s] }}</strong></div>{% endfor %}</section>
+<nav class="ingreso-tabs" aria-label="Procesos de Ingreso">{% for key,label in [('sial','Estudiantes SIAL'),('microsoft','Microsoft / Teams'),('moodle','Moodle'),('history','Historial')] %}<a href="{{ link(1,key) }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{% if section == 'history' %}
+<h2>Historial de consultas y procesos</h2>
+<table class="ingreso-table"><thead><tr><th>Proceso</th><th>Fecha / responsable</th><th>Estado y resultado</th></tr></thead><tbody>{% for j in history %}<tr><td data-label="Proceso"><a href="/ingreso/jobs/{{ j.id }}">#{{ j.id }} &middot; {{ kinds[j.kind] }}</a></td><td data-label="Fecha">{{ j.created_at|local_datetime }}<br>{{ j.actor }}</td><td data-label="Resultado">{{ states.get(j.status,j.status) }}<br>{{ j.message }}</td></tr>{% else %}<tr><td colspan="3">Sin tareas.</td></tr>{% endfor %}</tbody></table>
+{% else %}
+<section class="ingreso-toolbar ingreso-band"><h2>{{ 'Estudiantes SIAL' if section == 'sial' else kinds[section] }}</h2>
+{% if section in ['microsoft','moodle'] %}<form method="post" action="/ingreso/{{ campaign.id }}/prepare/{{ section }}"><input type="hidden" name="token" value="{{ csrf }}"><button {% if active or not counts.current %}disabled{% endif %}>Preparar vista previa {{ 'Microsoft' if section == 'microsoft' else 'Moodle' }}</button></form>{% endif %}
+<a href="/ingreso/{{ campaign.id }}/excel">Descargar Excel</a></section>
+{% if section == 'microsoft' %}<p class="hint">Correo de bienvenida: <a href="/mail">SMTP y plantilla del CRM</a>. Solo para cuentas nuevas creadas por Ingreso.</p>{% elif section == 'moodle' %}<p class="hint">Sin notificaciones por correo. Contabilidad pendiente no bloquea I3&ndash;I6. No se eliminan matr&iacute;culas de cursos anteriores.</p>{% endif %}
+<form method="get" class="ingreso-filter"><input type="hidden" name="campaign_id" value="{{ campaign.id }}"><input type="hidden" name="section" value="{{ section }}">
+<label>Alumno, DNI, UPN o email<input type="search" name="q" value="{{ q }}"></label>
+<label>Condici&oacute;n<select name="condition"><option value="">Todas</option>{% for s in ['preinscriptos','aspirantes','ingresantes','not_seen','pending_sync'] %}<option value="{{ s }}" {% if condition == s %}selected{% endif %}>{{ states.get(s,s|capitalize) }}</option>{% endfor %}</select></label>
+<label>Filas<select name="per_page">{% for n in [25,50,100,200,500] %}<option {% if per_page == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label><button>Filtrar</button></form>
+<p class="hint">{{ total }} personas &middot; P&aacute;gina {{ page }} de {{ pages }}</p>
+<table class="ingreso-table"><colgroup><col style="width:30%"><col style="width:38%"><col></colgroup><thead><tr><th>Estudiante</th><th>Inscripciones SIAL</th><th>{{ 'Datos personales' if section == 'sial' else 'Resultado Microsoft' if section == 'microsoft' else 'Destinos Moodle previstos' }}</th></tr></thead><tbody>
+{% for p in people %}{% set s = p.student %}<tr>
+<td data-label="Estudiante"><strong>{{ s.last_name }}, {{ s.first_name or 'Sin nombre verificado' }}</strong><br>DNI {{ s.dni }}<br><small>{{ s.upn }}</small><br><span class="ingreso-status">{{ states.get(s.source_status,s.source_status) }}</span><br><small>{{ s.last_seen_at|local_datetime }}</small></td>
+<td data-label="Inscripciones SIAL">{% for r in p.registrations %}<div class="ingreso-registration"><strong>{{ r.career }}</strong><br>{{ r.states|join(' / ') }}<br>{{ 'Presencial' if r.modality == '1' else 'A distancia' if r.modality == '2' else 'Modalidad sin verificar' }} &middot; {{ r.commissions|join(' / ') or 'Sin comision' }}<br><small>{{ r.date }}</small></div>{% endfor %}</td>
+<td data-label="Resultado">{% if section == 'sial' %}{{ s.email or 'Sin email' }}<br>{{ s.phone or 'Sin telefono' }}{% if s.personal_message %}<p class="ingreso-warning">{{ s.personal_message }}</p>{% endif %}
+{% elif section == 'microsoft' %}{% if p.microsoft %}<a href="/ingreso/jobs/{{ p.microsoft.job_id }}">{{ states.get(p.microsoft.status,p.microsoft.status) }}</a><p>{{ p.microsoft.message }}</p>{% else %}Sin verificar en Microsoft{% endif %}{% if p.account %}<small>Correo: {{ states.get(p.account.email_status,p.account.email_status) }}</small>{% endif %}
+{% else %}{% for t in p.targets %}<span class="ingreso-destination">{{ t.course }} &middot; {{ t.group }}</span>{% endfor %}{% for issue in p.issues %}<p class="ingreso-warning">{{ issue }}</p>{% endfor %}{% if p.moodle %}<p><a href="/ingreso/jobs/{{ p.moodle.job_id }}">&Uacute;ltima tarea: {{ states.get(p.moodle.status,p.moodle.status) }}</a></p>{% endif %}{% endif %}</td>
+</tr>{% else %}<tr><td colspan="3">Sin estudiantes para este filtro.</td></tr>{% endfor %}</tbody></table>
+<nav class="ingreso-pagination" aria-label="Paginaci&oacute;n">{% if page > 1 %}<a href="{{ link(page-1) }}">Anterior</a>{% endif %}<span>{{ page }} / {{ pages }}</span>{% if page < pages %}<a href="{{ link(page+1) }}">Siguiente</a>{% endif %}</nav>
+{% endif %}
+{% endif %}
+<script src="/static/ingreso.js" defer></script>
+{% endblock %}

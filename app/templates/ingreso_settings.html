@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block shell_class %}shell-wide{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/ingreso.css">
+<header class="ingreso-toolbar"><h1>Configuraci&oacute;n de Ingreso</h1><a href="/ingreso{% if campaign %}?campaign_id={{ campaign.id }}{% endif %}">Volver a Ingreso</a></header>
+{% if not write_enabled %}<p class="ingreso-mode">Modo preparaci&oacute;n. Operaciones reales deshabilitadas.</p>{% endif %}
+{% if message %}<p class="alert" role="status">{{ message }}</p>{% endif %}
+<form method="get" class="ingreso-band"><label>Campa&ntilde;as<select name="campaign_id" onchange="if(this.value){this.form.submit()}else{location.href='/settings/ingreso'}"><option value="">Nueva campa&ntilde;a</option>{% for c in campaigns %}<option value="{{ c.id }}" {% if campaign and campaign.id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></label></form>
+<form method="post" action="/settings/ingreso" class="ingreso-settings">
+<input type="hidden" name="token" value="{{ csrf }}"><input type="hidden" name="campaign_id" value="{{ campaign.id if campaign else '' }}">
+<div class="ingreso-filter"><label>Nombre<input name="name" value="{{ campaign.name if campaign else 'Ingreso 2027' }}" maxlength="120" required></label><label>Inscripciones desde<input type="date" name="start_date" value="{{ campaign.start_date if campaign else '2026-12-01' }}" required></label><label>Hasta, inclusive<input type="date" name="end_date" value="{{ campaign.end_date if campaign else '2027-03-31' }}" required></label></div>
+<section class="ingreso-band"><h2>Carreras y cursos fijos</h2>
+<table class="ingreso-table ingreso-rules"><colgroup><col style="width:8%"><col style="width:42%"><col style="width:23%"><col></colgroup><thead><tr><th>ID SIAL</th><th>Carrera</th><th>Distribuci&oacute;n</th><th>Cursos fijos (shortnames)</th></tr></thead><tbody data-career-rows>
+{% for key,r in rules.careers.items() %}<tr><td data-label="ID SIAL"><input name="career_id" value="{{ key }}" aria-label="ID SIAL {{ key }}"></td><td data-label="Carrera"><input name="career_name" value="{{ r.name }}" aria-label="Carrera {{ key }}"></td><td data-label="Distribucion"><select name="career_kind" aria-label="Distribucion {{ key }}"><option value="degree" {% if r.kind == 'degree' %}selected{% endif %}>Grado + Contabilidad</option><option value="exclusive" {% if r.kind == 'exclusive' %}selected{% endif %}>Solo cursos fijos</option></select></td><td data-label="Cursos fijos"><input name="career_courses" value="{{ r.courses|join(', ') }}" aria-label="Cursos fijos {{ key }}"></td></tr>{% endfor %}
+</tbody></table><button class="secondary" type="button" data-add-career>Agregar carrera</button>
+</section>
+<section class="ingreso-band"><h2>Contabilidad: comisi&oacute;n &rarr; aula Moodle</h2>
+<div class="ingreso-accounting">{% for group,label in [('P','Presencial'),('D','A distancia')] %}<div><h3>{{ label }} &middot; {{ group }}</h3>{% for commission,destination in rules.accounting[group].items() %}<label class="ingreso-rule"><span>{{ commission }}</span><select name="{{ group }}:{{ commission }}" aria-label="{{ commission }} {{ group }}"><option value="">Sin asignar</option>{% for course in ['I1','I2'] %}<option {% if destination == course %}selected{% endif %}>{{ course }}</option>{% endfor %}</select></label>{% endfor %}</div>{% endfor %}</div>
+</section>
+<div class="ingreso-toolbar"><button type="submit">Guardar configuraci&oacute;n</button><div><a href="/settings/audit">Credenciales SIAL</a> &middot; <a href="/mail">Correo de bienvenida</a> &middot; <a href="/skus">Licencias</a></div></div>
+</form>
+<template id="ingreso-career-row"><tr><td data-label="ID SIAL"><input name="career_id" aria-label="Nuevo ID SIAL"></td><td data-label="Carrera"><input name="career_name" aria-label="Nueva carrera"></td><td data-label="Distribucion"><select name="career_kind" aria-label="Nueva distribucion"><option value="degree">Grado + Contabilidad</option><option value="exclusive">Solo cursos fijos</option></select></td><td data-label="Cursos fijos"><input name="career_courses" aria-label="Nuevos cursos fijos"></td></tr></template>
+<script src="/static/ingreso.js" defer></script>
+{% endblock %}

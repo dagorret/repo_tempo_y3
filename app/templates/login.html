@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="login-panel">
+  <h1>Ingreso</h1>
+  {% if error %}
+  <p class="alert">{{ error }}</p>
+  {% endif %}
+  {% if azure_enabled %}
+  <form method="get" action="/login/microsoft" class="stack">
+    <button type="submit">Ingresar con Microsoft</button>
+  </form>
+  <p class="hint">Si preferis, tambien podes usar usuario local.</p>
+  {% endif %}
+  <form method="post" action="/login" class="stack">
+    <label>
+      Usuario
+      <input name="username" autocomplete="username" required autofocus>
+    </label>
+    <label>
+      Contrasena
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Ingresar</button>
+  </form>
+</section>
+{% endblock %}

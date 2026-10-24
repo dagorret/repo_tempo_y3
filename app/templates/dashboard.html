@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <h1>Importar listado</h1>
+  {% if error %}
+  <p class="alert">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/imports/preview" enctype="multipart/form-data" class="status-panel import-form-grid">
+    <div class="import-left stack">
+      <label>
+        Tipo
+        <select name="person_type" required>
+          <option value="student">Estudiantes</option>
+          <option value="teacher">Docentes</option>
+        </select>
+      </label>
+      <label>
+        Curso Moodle
+        <input name="course_shortname" placeholder="shortname o varios: 9040,9041">
+      </label>
+      <label>
+        Grupo Moodle (opcional)
+        <input name="moodle_group_name" placeholder="Ej: Comision A">
+      </label>
+      <label class="inline-check">
+        <input type="checkbox" name="moodle_group_autocreate" checked>
+        Crear el grupo si no existe
+      </label>
+      <label>
+        Modo de grupo
+        <select name="moodle_group_mode">
+          <option value="tolerant" selected>Tolerante (matricula igual)</option>
+          <option value="strict">Estricto (si falla grupo, marca error)</option>
+        </select>
+      </label>
+      <label>
+        Archivo Excel
+        <input type="file" name="file" accept=".xlsx" required>
+      </label>
+      <p class="hint">Columnas aceptadas: documento/dni, nombre, apellido, email. Tambien puede venir nombre completo como apellido y nombre.</p>
+    </div>
+
+    <div class="import-right stack">
+      <div class="import-mail-head">
+        <h2>Correo para esta importacion</h2>
+        <a href="/mail">Configurar SMTP</a>
+      </div>
+      <label>
+        Asunto correo
+        <input name="email_subject" value="{{ settings.smtp_subject }}" placeholder="Asunto del correo">
+      </label>
+      <label>
+        Mensaje correo
+        <textarea name="email_message" rows="10" placeholder="Variables: {full_name}, {upn}, {password}">{{ settings.smtp_message_template }}</textarea>
+      </label>
+      <p class="hint">Remitente: {{ settings.smtp_from_name or "-" }} &lt;{{ settings.smtp_from_email or "-" }}&gt;</p>
+    </div>
+
+    <div class="import-form-actions">
+      <button type="submit">Continuar</button>
+      <span class="hint">Modo: {% if settings.crm_dry_run %}Simulacion{% else %}Produccion{% endif %}</span>
+    </div>
+  </form>
+</section>
+
+<section>
+  <h2>Ultimas importaciones</h2>
+  <div class="table-wrap">
+    <table class="imports-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Archivo</th>
+          <th>Tipo</th>
+          <th>Curso</th>
+          <th>Grupo</th>
+          <th>Modo grupo</th>
+          <th>Usuario</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for batch in batches %}
+        <tr>
+          <td><a href="/imports/{{ batch.id }}">{{ batch.id }}</a></td>
+          <td>{{ batch.filename }}</td>
+          <td>{{ "Estudiantes" if batch.person_type == "student" else "Docentes" }}</td>
+          <td>{{ batch.course_shortname or "-" }}</td>
+          <td>{{ batch.moodle_group_name or "-" }}</td>
+          <td>{{ "Estricto" if batch.moodle_group_mode == "strict" else "Tolerante" }}</td>
+          <td>{{ batch.created_by }}</td>
+          <td>
+            <span class="pill {{ batch.run_status }}">{{ batch.run_status }}</span>
+            <div class="hint">
+              {{ batch.processed_rows or 0 }}/{{ batch.total_rows or 0 }}
+            </div>
+          </td>
+          <td>{{ batch.created_at|local_datetime }}</td>
+          <td>
+            {% if batch.run_status in ["pending", "running"] %}
+            <button class="danger small" type="button" disabled>En proceso</button>
+            {% else %}
+            <form method="post" action="/imports/{{ batch.id }}/delete" onsubmit="return confirm('Eliminar la importacion {{ batch.id }}?');">
+              <button class="danger small" type="submit">Eliminar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10">Sin importaciones.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block shell_class %}shell-wide{% endblock %}
+{% block content %}
+{% set busy_statuses = ["queued", "running", "verifying"] %}
+<section class="split-title">
+  <div>
+    <h1>Matriculacion</h1>
+    <p>Sincronizacion diaria de Moodle usando Lincu como valor de verdad.</p>
+  </div>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="grid two matriculation-setup">
+  <div class="status-panel compact-panel">
+    <h2>Subir Lincu</h2>
+    <form method="post" action="/matriculation/preview" enctype="multipart/form-data" class="stack">
+      <label>
+        Archivo Lincu TXT
+        <input type="file" name="file" accept=".txt" required>
+      </label>
+      <label class="inline-check"><input id="verify-moodle" type="checkbox" name="verify_moodle" value="1">Comprobar matr&iacute;culas actuales en Moodle</label>
+      <label>
+        Cursos a comprobar en Moodle
+        <input id="verification-courses" name="verification_courses" inputmode="numeric" placeholder="Ej: 230, 105" disabled>
+        <small class="hint">Solo se consultar&aacute;n en Moodle estos c&oacute;digos presentes en el Lincu. Los dem&aacute;s cursos usar&aacute;n la comparaci&oacute;n local habitual.</small>
+      </label>
+      <div class="filters-actions">
+        <button type="submit">Generar vista previa</button>
+      </div>
+    </form>
+  </div>
+
+  <aside class="status-panel compact-panel matriculation-history">
+    <h2>Bitacora</h2>
+    {% if runs %}
+    <div class="stack compact-list">
+      {% for run in runs %}
+      <div class="run-entry">
+        <a class="run-link {% if selected_run and selected_run.id == run.id %}active{% endif %}" href="/matriculation?run_id={{ run.id }}">
+          <strong>#{{ run.id }}</strong>
+          <span>{{ run.created_at|local_datetime }}</span>
+          <span class="pill {{ run.status }}">{{ run.status }}</span>
+        </a>
+        {% if run.status not in busy_statuses %}
+        <form method="post" action="/matriculation/runs/{{ run.id }}/delete" onsubmit="return confirm('Eliminar solo este historial local? Moodle no se modificara.');">
+          <button type="submit" class="danger small">Eliminar</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="hint">Todavia no hay corridas.</p>
+    {% endif %}
+  </aside>
+</section>
+
+<script>
+  (function () {
+    const checkbox = document.getElementById("verify-moodle");
+    const courses = document.getElementById("verification-courses");
+    if (!checkbox || !courses) return;
+    function syncVerificationInput() {
+      courses.disabled = !checkbox.checked;
+      courses.required = checkbox.checked;
+      if (!checkbox.checked) courses.value = "";
+    }
+    checkbox.addEventListener("change", syncVerificationInput);
+    syncVerificationInput();
+  })();
+</script>
+
+{% if selected_run %}
+<section class="status-panel batch-progress matriculation-progress" data-run-id="{{ selected_run.id }}" data-status="{{ selected_run.status }}" data-view="{{ detail_view }}">
+  <div class="progress-head">
+    <div>
+      <h2>Corrida #{{ selected_run.id }}</h2>
+      <p class="hint">{{ selected_run.filename }} - {{ selected_run.created_at|local_datetime }}</p>
+    </div>
+    <span id="mat-status" class="pill {{ selected_run.status }}">{{ selected_run.status }}</span>
+  </div>
+
+  <div class="chips top-gap">
+    <span>{{ "Filas Electiva" if selected_run.source_type == "elective" else "Filas Lincu" }}: {{ selected_run.total_source_rows }}</span>
+    <span>Deseadas: {{ selected_run.desired_rows }}</span>
+    <span>Alumnos únicos: {{ unique_student_count }}</span>
+    <span>Altas: {{ selected_run.enroll_rows }}</span>
+    {% if selected_run.verification_scope %}
+    <a class="summary-chip {% if detail_view == 'missing' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=missing&per_page={{ per_page }}">Faltantes Moodle: {{ missing_moodle_count }}</a>
+    <span>Revisi&oacute;n Moodle: {{ selected_run.verification_scope }}</span>
+    {% else %}
+    <span class="hint">Moodle no revisado</span>
+    {% endif %}
+    <span class="{% if selected_run.course_alert_count %}warning-chip{% endif %}">Carga ≥ {{ selected_run.course_alert_threshold }}: {{ selected_run.course_alert_count }}</span>
+    <a class="summary-chip {% if detail_view == 'group_changes' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=group_changes&per_page={{ per_page }}">Cambios grupo: {{ selected_run.group_change_rows }}</a>
+    <a class="summary-chip {% if detail_view == 'course_changes' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=course_changes&per_page={{ per_page }}">Cambios curso: {{ selected_run.course_change_rows }}</a>
+    <a class="summary-chip warning-chip {% if detail_view == 'unenrollments' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=unenrollments&per_page={{ per_page }}">Bajas: {{ selected_run.unenroll_rows }}</a>
+    <a class="summary-chip {% if detail_view == 'unchanged' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=unchanged&per_page={{ per_page }}">Sin cambios: {{ selected_run.unchanged_rows }}</a>
+    <a class="summary-chip error-chip {% if detail_view == 'errors' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=errors&per_page={{ per_page }}">Errores: {{ selected_run.error_rows }}</a>
+  </div>
+
+  {% if selected_run.status in busy_statuses %}
+  <div class="progress-track top-gap">
+    <div id="mat-fill" class="progress-fill" style="width: 0%"></div>
+  </div>
+  <p class="progress-meta">
+    <span id="mat-count">{% if selected_run.status == 'verifying' %}{{ selected_run.verification_processed_courses }}/{{ selected_run.verification_total_courses }} cursos{% else %}{{ selected_run.execution_processed_rows }}/{{ selected_run.execution_total_rows }}{% endif %}</span>
+    <span id="mat-timing">Iniciando medicion...</span>
+    <span id="mat-message">{{ selected_run.message }}</span>
+  </p>
+  {% else %}
+  <p class="hint top-gap">{{ selected_run.message }}</p>
+  {% if selected_run.started_at %}
+  <p class="hint execution-summary">Ultima ejecucion: {{ selected_run.execution_processed_rows }}/{{ selected_run.execution_total_rows }} filas en {{ "%.1f"|format(execution_seconds) }}s.</p>
+  {% endif %}
+  {% endif %}
+
+  <div class="actions top-gap">
+    {% if filtered_actionable_count and selected_run.status not in busy_statuses %}
+    <form method="post" action="/matriculation/runs/{{ selected_run.id }}/execute" onsubmit="return confirm('Ejecutar estos cambios en Moodle?');">
+      <button type="submit">Ejecutar todo pendiente ({{ actionable_count }})</button>
+    </form>
+    {% endif %}
+    <a class="button-link secondary {% if detail_view == 'changes' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=changes&per_page={{ per_page }}">Ver cambios</a>
+    <a class="button-link secondary {% if detail_view == 'all' %}active{% endif %}" href="/matriculation?run_id={{ selected_run.id }}&view=all&per_page={{ per_page }}">Ver todo</a>
+    {% if selected_run.course_alert_count %}
+    <a class="button-link secondary" href="/matriculation/runs/{{ selected_run.id }}/course-load.xlsx">Descargar carga académica ({{ selected_run.course_alert_count }})</a>
+    {% endif %}
+  </div>
+</section>
+
+<section>
+  <div class="list-toolbar">
+    <h2>Detalle: {{ detail_view_label }}</h2>
+    <p class="hint list-summary">
+      Mostrando {{ rows|length }} de {{ filtered_count }} filas filtradas{% if total_rows != filtered_count %} ({{ total_rows }} totales){% endif %}.
+    </p>
+    <form method="get" action="/matriculation" class="pagination-size">
+      <input type="hidden" name="run_id" value="{{ selected_run.id }}">
+      <input type="hidden" name="view" value="{{ detail_view }}">
+      <label>
+        Filas por pagina
+        <select name="per_page" onchange="this.form.submit()">
+          {% for size in [100, 200, 500] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  </div>
+
+  {% if pagination_pages %}
+  <nav class="pagination pagination-top" aria-label="Paginas de detalle">
+    {% if current_page > 1 %}
+    <a class="button-link secondary pagination-link" href="/matriculation?run_id={{ selected_run.id }}&view={{ detail_view }}&page={{ current_page - 1 }}&per_page={{ per_page }}">Anterior</a>
+    {% endif %}
+    {% for page_number in pagination_pages %}
+      {% if page_number %}
+        {% if page_number == current_page %}
+        <span class="pagination-current">{{ page_number }}</span>
+        {% else %}
+        <a class="button-link secondary pagination-link" href="{{ pagination_urls[page_number] }}">{{ page_number }}</a>
+        {% endif %}
+      {% else %}
+      <span class="pagination-gap">...</span>
+      {% endif %}
+    {% endfor %}
+    {% if current_page < total_pages %}
+    <a class="button-link secondary pagination-link" href="/matriculation?run_id={{ selected_run.id }}&view={{ detail_view }}&page={{ current_page + 1 }}&per_page={{ per_page }}">Siguiente</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  <form id="mat-selection-form" method="post" action="/matriculation/runs/{{ selected_run.id }}/execute-selected">
+    <input type="hidden" name="page" value="{{ current_page }}">
+    <input type="hidden" name="per_page" value="{{ per_page }}">
+    <input type="hidden" name="show_all" value="{{ 1 if detail_view == 'all' else 0 }}">
+    <input type="hidden" name="view" value="{{ detail_view }}">
+    {% if actionable_count and selected_run.status not in busy_statuses %}
+    <div class="selection-toolbar">
+      <span><strong id="selected-count">0</strong> seleccionados en esta pagina</span>
+      <button id="execute-selected" type="submit" class="small" disabled>Ejecutar seleccionados</button>
+    </div>
+    {% endif %}
+    <div class="table-wrap users-table-wrap">
+    <table class="users-table matriculation-table">
+      <colgroup>
+        <col class="mat-select-col">
+        <col class="mat-person-col">
+        <col class="mat-course-col">
+        <col class="mat-status-col">
+        <col class="mat-detail-col">
+        <col class="mat-action-col">
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="select-column">
+            {% if filtered_actionable_count and selected_run.status not in busy_statuses %}
+            <input id="select-visible" type="checkbox" aria-label="Seleccionar filas visibles">
+            {% endif %}
+          </th>
+          <th>Alumno</th>
+          <th>Curso</th>
+          <th>Estado</th>
+          <th>Detalle</th>
+          <th>Ejecutar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="select-column">
+            {% if row.action in ["enroll", "group_change", "course_change"] and row.status in ["preview", "error"] and selected_run.status not in busy_statuses %}
+            <input class="row-select" type="checkbox" name="row_ids" value="{{ row.id }}" aria-label="Seleccionar {{ row.document }} {{ row.course_shortname }}">
+            {% endif %}
+          </td>
+          <td class="mat-person">
+            <strong>{{ (row.last_name ~ ", " ~ row.first_name).strip(", ") if row.first_name or row.last_name else "-" }}</strong>
+            <div class="mat-meta-line"><span>DNI</span> {{ row.document or "-" }}</div>
+            {% if row.upn %}<div class="mono">{{ row.upn }}</div>{% endif %}
+          </td>
+          <td class="mat-course">
+            {% if row.action == "course_change" %}
+            <div class="previous-value">{{ row.previous_course_shortname or "-" }}</div>
+            <div class="change-arrow">a</div>
+            {% endif %}
+            <strong>{{ row.course_shortname or "-" }}</strong>
+            {% if row.source_course %}<div>{{ row.source_course }}</div>{% endif %}
+            <div class="mat-meta-row">
+              <span><b>Grupo:</b>
+                {% if row.action in ["group_change", "course_change"] %}
+                  {{ row.previous_group_name or "-" }} -&gt; {{ row.group_name or "-" }}
+                {% elif row.action == "unenroll" %}
+                  {{ row.previous_group_name or "-" }}
+                {% else %}
+                  {{ row.group_name or "-" }}
+                {% endif %}
+              </span>
+              <span><b>Lincu:</b> {{ row.source_code or "-" }}</span>
+            </div>
+          </td>
+          <td class="mat-status">
+            {% if row.action == "enroll" %}
+              {% set action_text = "Alta" %}
+            {% elif row.action == "group_change" %}
+              {% set action_text = "Grupo" %}
+            {% elif row.action == "course_change" %}
+              {% set action_text = "Curso" %}
+            {% elif row.action == "unenroll" %}
+              {% set action_text = "Baja" %}
+            {% else %}
+              {% set action_text = row.action %}
+            {% endif %}
+            {% if row.status == "preview" %}
+              {% set status_text = "Previa" %}
+            {% elif row.status == "done" %}
+              {% set status_text = "Listo" %}
+            {% elif row.status == "error" %}
+              {% set status_text = "Error" %}
+            {% elif row.status == "unverified" %}
+              {% set status_text = "No verificado" %}
+            {% elif row.status == "running" %}
+              {% set status_text = "En curso" %}
+            {% else %}
+              {% set status_text = row.status %}
+            {% endif %}
+            <div class="mat-status-stack">
+              <span class="pill {{ row.action }}">{{ action_text }}</span>
+              <span class="pill {{ row.status }}">{{ status_text }}</span>
+            </div>
+          </td>
+          <td class="mat-detail">{{ row.message or "-" }}</td>
+          <td class="row-action">
+            {% if row.action in ["enroll", "group_change", "course_change"] and row.status in ["preview", "error"] and selected_run.status not in busy_statuses %}
+              {% if row.action == "enroll" %}
+                {% set action_label = "Matricular" %}
+              {% elif row.action == "group_change" %}
+                {% set action_label = "Cambiar grupo" %}
+              {% elif row.action == "course_change" %}
+                {% set action_label = "Cambiar curso" %}
+              {% else %}
+                {% set action_label = "Desmatricular" %}
+              {% endif %}
+            <button
+              type="submit"
+              class="small soft"
+              formaction="/matriculation/runs/{{ selected_run.id }}/rows/{{ row.id }}/execute"
+              onclick="return confirm('{{ action_label }} solo este registro en Moodle?');"
+            >{{ action_label }}</button>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Sin filas para mostrar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </form>
+
+  {% if pagination_pages %}
+  <nav class="pagination pagination-bottom" aria-label="Paginas de detalle">
+    {% if current_page > 1 %}
+    <a class="button-link secondary pagination-link" href="/matriculation?run_id={{ selected_run.id }}&view={{ detail_view }}&page={{ current_page - 1 }}&per_page={{ per_page }}">Anterior</a>
+    {% endif %}
+    <span class="pagination-current">{{ current_page }} / {{ total_pages }}</span>
+    {% if current_page < total_pages %}
+    <a class="button-link secondary pagination-link" href="/matriculation?run_id={{ selected_run.id }}&view={{ detail_view }}&page={{ current_page + 1 }}&per_page={{ per_page }}">Siguiente</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+
+<script>
+  (function () {
+    const box = document.querySelector(".matriculation-progress");
+    if (!box) return;
+    const status = box.dataset.status || "";
+    if (!["queued", "running", "verifying"].includes(status)) return;
+    const runId = box.dataset.runId;
+    const detailView = box.dataset.view || "changes";
+    const statusEl = document.getElementById("mat-status");
+    const fillEl = document.getElementById("mat-fill");
+    const countEl = document.getElementById("mat-count");
+    const messageEl = document.getElementById("mat-message");
+
+    async function tick() {
+      const response = await fetch(`/matriculation/runs/${runId}/progress`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      statusEl.textContent = data.status;
+      statusEl.className = `pill ${data.status}`;
+      fillEl.style.width = `${data.percent || 0}%`;
+      countEl.textContent = `${data.processed}/${data.total} ${data.unit || 'filas'}`;
+      messageEl.textContent = data.message || "";
+      const elapsed = Number(data.elapsed_seconds || 0);
+      const rate = Number(data.rows_per_minute || 0);
+      const eta = Number(data.eta_seconds || 0);
+      const timingEl = document.getElementById("mat-timing");
+      if (timingEl) {
+        timingEl.textContent = `${formatDuration(elapsed)} - ${rate.toFixed(1)} ${data.unit || 'filas'}/min - restante ${formatDuration(eta)}`;
+      }
+      if (!["queued", "running", "verifying"].includes(data.status)) {
+        window.location.href = `/matriculation?run_id=${encodeURIComponent(runId)}&view=${encodeURIComponent(detailView)}`;
+      }
+    }
+
+    function formatDuration(seconds) {
+      const value = Math.max(0, Math.round(Number(seconds || 0)));
+      const hours = Math.floor(value / 3600);
+      const minutes = Math.floor((value % 3600) / 60);
+      const secs = value % 60;
+      if (hours) return `${hours}h ${minutes}m ${secs}s`;
+      if (minutes) return `${minutes}m ${secs}s`;
+      return `${secs}s`;
+    }
+
+    tick();
+    setInterval(tick, 2000);
+  })();
+
+  (function () {
+    const form = document.getElementById("mat-selection-form");
+    if (!form) return;
+    const boxes = Array.from(form.querySelectorAll(".row-select"));
+    const selectVisible = document.getElementById("select-visible");
+    const selectedCount = document.getElementById("selected-count");
+    const executeSelected = document.getElementById("execute-selected");
+    let lastChecked = null;
+
+    function refreshSelection() {
+      const count = boxes.filter((box) => box.checked).length;
+      if (selectedCount) selectedCount.textContent = String(count);
+      if (executeSelected) executeSelected.disabled = count === 0;
+      if (selectVisible) {
+        selectVisible.checked = boxes.length > 0 && count === boxes.length;
+        selectVisible.indeterminate = count > 0 && count < boxes.length;
+      }
+    }
+
+    boxes.forEach((box) => {
+      box.addEventListener("click", (event) => {
+        if (lastChecked && (event.shiftKey || event.ctrlKey)) {
+          const start = boxes.indexOf(lastChecked);
+          const end = boxes.indexOf(box);
+          const from = Math.min(start, end);
+          const to = Math.max(start, end);
+          for (let index = from; index <= to; index += 1) {
+            boxes[index].checked = box.checked;
+          }
+        }
+        lastChecked = box;
+        refreshSelection();
+      });
+    });
+
+    if (selectVisible) {
+      selectVisible.addEventListener("change", () => {
+        boxes.forEach((box) => { box.checked = selectVisible.checked; });
+        refreshSelection();
+      });
+    }
+
+    form.addEventListener("submit", (event) => {
+      const submitter = event.submitter;
+      if (!submitter || submitter.id !== "execute-selected") return;
+      const count = boxes.filter((box) => box.checked).length;
+      if (!count || !confirm(`Ejecutar ${count} registros seleccionados en Moodle?`)) {
+        event.preventDefault();
+      }
+    });
+
+    refreshSelection();
+  })();
+</script>
+{% endif %}
+{% endblock %}

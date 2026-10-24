@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block shell_class %}shell-wide audit-shell{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/audit.css">
+<header class="audit-toolbar"><h1>Bajas &middot; Lote #{{ batch.id }}</h1><a href="/auditoria?run_id={{ run.id }}">Volver al informe #{{ run.id }}</a></header>
+{% if message %}<p class="alert" role="status">{{ message }}</p>{% endif %}
+<section class="audit-band" {% if batch.status in ['queued','running'] %}data-progress-url="/auditoria/bajas/{{ batch.id }}/progreso"{% endif %}>
+  <p><strong>{{ batch.status }}</strong> &middot; {{ batch.actor }} &middot; {{ batch.created_at|local_datetime }}</p>
+  <p data-job-message role="status">{{ batch.message }}</p><p>{{ people|length }} personas &middot; {{ pending }} pendientes o con error</p>
+</section>
+<p class="alert"><strong>Elimina la cuenta completa de Microsoft 365 y la cuenta Moodle.</strong> No es solo salir de Teams o desmatricular. La baja puede afectar correo, archivos y otros servicios de Microsoft. Antes de eliminar, el sistema vuelve a comprobar SIAL, cursos Moodle, equipos Teams directos y actividad Microsoft 365/Teams de 180 d&iacute;as; cualquier actividad, dato incompleto o curso bloquea la baja.</p>
+{% if blocked_count %}<p class="audit-warning">{{ blocked_count }} personas no cumplen el criterio vigente. Este lote no puede confirmarse; requiere una nueva selecci&oacute;n desde el informe.</p>{% endif %}
+{% if blocked_count is not defined %}<p class="alert">Servidor pendiente de reinicio; confirmaci&oacute;n de bajas deshabilitada.</p>{% endif %}
+{% if pending and blocked_count is defined and not blocked_count and batch.status not in ['queued','running'] %}
+<form class="audit-band stack" method="post" action="/auditoria/bajas/{{ batch.id }}/confirmar">
+  <input type="hidden" name="token" value="{{ csrf }}">
+  <label class="inline-check"><input type="checkbox" name="understood" value="yes" required>Confirmo la baja de las cuentas completas de estas personas.</label>
+  <div class="audit-settings-grid"><label>Confirmaci&oacute;n: ELIMINAR<input name="confirmation" pattern="ELIMINAR" required autocomplete="off"></label><label>Tu contrase&ntilde;a del CRM<input type="password" name="password" autocomplete="current-password" required></label></div>
+  <div><button class="danger" type="submit" {% if config.crm_dry_run %}disabled{% endif %}>{{ 'Eliminar seleccionados de Microsoft y Moodle' if batch.status == 'preview' else 'Reintentar solo pendientes' }}</button></div>
+  {% if config.crm_dry_run %}<p class="hint">Modo simulaci&oacute;n: bajas reales deshabilitadas.</p>{% endif %}
+</form>
+{% endif %}
+<table class="audit-table"><colgroup><col style="width:32%"><col style="width:18%"><col style="width:18%"><col></colgroup><thead><tr><th>Alumno</th><th>Moodle</th><th>Microsoft</th><th>Detalle</th></tr></thead><tbody>
+{% for entry in people %}{% set p = entry.person %}{% set r = entry.row %}<tr>
+  <td data-label="Alumno"><strong>{{ p.apellido or '' }}, {{ p.nombre or '' }}</strong><br>DNI {{ p.dni }}<br><small>{{ p.upn }}</small><br>{{ p.estados_sial }}</td>
+  <td data-label="Moodle">{{ r.moodle_status }}<br><small>{{ p.moodle_estado }} &middot; Cursos: {{ p.moodle_cursos_cantidad if p.moodle_cursos_cantidad is not none else '?' }}</small></td>
+  <td data-label="Microsoft">{{ r.microsoft_status }}<br><small>{{ p.microsoft_estado }} &middot; Equipos: {{ p.teams_cantidad if p.teams_cantidad is not none else '?' }}</small></td>
+  <td data-label="Detalle">{{ r.message }}{% if entry.block_reason %}<br><strong class="audit-warning">{{ entry.block_reason }}</strong>{% endif %}<br><small>Actividad 180 d&iacute;as: {{ p.actividad }} &middot; {{ r.checked_at|local_datetime }}</small></td>
+</tr>{% endfor %}</tbody></table>
+<script src="/static/audit.js" defer></script>
+{% endblock %}

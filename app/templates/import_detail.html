@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Importacion {{ batch.id }}</h1>
+    <p>{{ batch.filename }} - {{ "Estudiantes" if batch.person_type == "student" else "Docentes" }} - {{ batch.course_shortname or "sin curso" }}</p>
+  </div>
+  <div class="actions">
+    <a class="button-link" href="/imports/{{ batch.id }}/existing.csv">Exportar existentes</a>
+    {% if batch.run_status in ["pending", "running"] %}
+    <button class="danger" type="button" disabled>En proceso</button>
+    {% else %}
+    <form method="post" action="/imports/{{ batch.id }}/delete" onsubmit="return confirm('Eliminar la importacion {{ batch.id }}?');">
+      <button class="danger" type="submit">Eliminar</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="status-panel batch-progress" data-batch-id="{{ batch.id }}">
+  <h2>Progreso del lote</h2>
+  <div class="progress-head">
+    <span id="progress-status" class="pill {{ batch.run_status }}">{{ batch.run_status }}</span>
+    <span id="progress-counts">{{ batch.processed_rows or 0 }}/{{ batch.total_rows or 0 }}</span>
+  </div>
+  <div class="progress-track">
+    <div id="progress-fill" class="progress-fill" style="width: {% if batch.total_rows %}{{ ((batch.processed_rows or 0) * 100 / batch.total_rows)|round(0, 'floor') }}{% else %}0{% endif %}%"></div>
+  </div>
+  <div class="progress-meta">
+    <span>Ok: <strong id="progress-ok">{{ batch.success_rows or 0 }}</strong></span>
+    <span>Errores: <strong id="progress-error">{{ batch.error_rows or 0 }}</strong></span>
+  </div>
+  <p class="hint">Este bloque se actualiza en vivo. Si queres, podes dejar esta pantalla abierta.</p>
+</section>
+
+{% if existing %}
+<section>
+  <h2>Cuentas existentes</h2>
+  <div class="chips">
+    {% for person in existing %}
+    <span>{{ person.upn }}</span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <h2>Resultado</h2>
+  <div class="table-wrap">
+    <table class="imports-table">
+      <thead>
+        <tr>
+          <th>UPN</th>
+          <th>Nombre completo</th>
+          <th>Documento</th>
+          <th>Azure</th>
+          <th>Moodle</th>
+          <th>Correo</th>
+          <th>Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for person in people %}
+        <tr>
+          <td>{{ person.upn }}</td>
+          <td>{{ person.full_name or (person.first_name ~ " " ~ person.last_name) }}</td>
+          <td>{{ person.document or "-" }}</td>
+          <td><span class="pill {{ person.azure_status }}">{{ "simulacion" if person.azure_status == "dry_run" else person.azure_status }}</span></td>
+          <td><span class="pill {{ person.moodle_status }}">{{ "simulacion" if person.moodle_status == "dry_run" else person.moodle_status }}</span></td>
+          <td><span class="pill {{ person.email_status }}">{{ "simulacion" if person.email_status == "dry_run" else person.email_status }}</span></td>
+          <td>{{ person.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<script>
+  (function () {
+    const box = document.querySelector(".batch-progress");
+    if (!box) {
+      return;
+    }
+    const batchId = box.dataset.batchId;
+    const fill = document.getElementById("progress-fill");
+    const status = document.getElementById("progress-status");
+    const counts = document.getElementById("progress-counts");
+    const ok = document.getElementById("progress-ok");
+    const error = document.getElementById("progress-error");
+
+    let stopped = false;
+
+    async function refresh() {
+      if (stopped) {
+        return;
+      }
+      try {
+        const response = await fetch(`/imports/${batchId}/progress`, { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        fill.style.width = `${data.percent}%`;
+        status.textContent = data.run_status;
+        status.className = `pill ${data.run_status}`;
+        counts.textContent = `${data.processed_rows}/${data.total_rows}`;
+        ok.textContent = String(data.success_rows);
+        error.textContent = String(data.error_rows);
+
+        if (data.run_status === "completed" || data.run_status === "failed") {
+          stopped = true;
+          setTimeout(function () {
+            window.location.reload();
+          }, 1000);
+        }
+      } catch (e) {
+        // Sin ruido en UI si hay un corte temporal.
+      }
+    }
+
+    const initialStatus = status.textContent.trim();
+    if (initialStatus === "pending" || initialStatus === "running") {
+      refresh();
+      setInterval(refresh, 2000);
+    }
+  })();
+</script>
+{% endblock %}

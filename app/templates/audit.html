@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block shell_class %}shell-wide audit-shell{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/audit.css">
+<header class="audit-toolbar">
+  <div><h1>Auditor&iacute;a</h1><p class="hint">SIAL &middot; Moodle &middot; Microsoft 365</p></div>
+  <a href="/settings/audit">Configuraci&oacute;n de auditor&iacute;a</a>
+</header>
+{% if message %}<p class="alert" role="status">{{ message }}</p>{% endif %}
+<section class="audit-toolbar audit-band">
+  <div><strong>Campa&ntilde;a: {{ config.audit_campaign_start }} / {{ config.audit_campaign_end or 'Abierta' }}</strong>
+    {% if not ready %}<p class="alert">Faltan las credenciales de SIAL.</p>{% endif %}
+  </div>
+  <form method="post" action="/auditoria/iniciar">
+    <input type="hidden" name="token" value="{{ csrf }}">
+    <button type="submit" {% if not ready %}disabled{% endif %}>Realizar auditor&iacute;a</button>
+  </form>
+</section>
+<section class="audit-toolbar">
+  <form method="get" action="/auditoria" class="audit-history">
+    <label>Historial
+      <select name="run_id" onchange="this.form.submit()" {% if not history %}disabled{% endif %}>
+        {% for item in history %}<option value="{{ item.id }}" {% if run and item.id == run.id %}selected{% endif %}>#{{ item.id }} &middot; {{ item.created_at|local_datetime }} &middot; {{ item.status }}</option>{% else %}<option>Sin auditor&iacute;as</option>{% endfor %}
+      </select>
+    </label>
+  </form>
+  {% if run and run.status not in ['queued','running'] %}<a class="button-link secondary" href="/auditoria/{{ run.id }}/excel">Descargar Excel</a>{% endif %}
+</section>
+{% if run %}
+{% if candidate_count is not defined %}<p class="alert">Servidor pendiente de reinicio. Las bajas de esta vista permanecen deshabilitadas hasta cargar la nueva validaci&oacute;n.</p>{% endif %}
+<section class="audit-band" {% if run.status in ['queued','running'] %}data-progress-url="/auditoria/{{ run.id }}/progreso"{% endif %}>
+  <div class="audit-toolbar"><strong>Auditor&iacute;a #{{ run.id }} &middot; {{ run.status }}</strong><span>{{ run.created_at|local_datetime }} &middot; {{ run.actor }}</span></div>
+  <p class="hint">Campa&ntilde;a del informe: {{ run.campaign_start }} / {{ run.campaign_end or 'Abierta; bajas deshabilitadas' }}</p>
+  {% if not campaign_closed %}<p class="audit-warning"><strong>Campa&ntilde;a sin cerrar.</strong> Los candidatos son visibles; las bajas permanecen bloqueadas hasta finalizar la fecha de cierre.</p>{% endif %}
+  <p data-job-message role="status">{{ run.message }}</p>
+  {% if run.status in ['queued','running'] %}<progress max="100" value="{{ run.progress }}" aria-label="Progreso de auditor&iacute;a"></progress>{% endif %}
+</section>
+<section class="audit-stats" aria-label="Resultados">
+  {% for key,label in views.items() %}<a href="{{ link(1,key) }}" class="{% if view == key %}is-active{% endif %}"><span>{{ label }}</span><strong>{{ counts[key] }}</strong></a>{% endfor %}
+</section>
+<section>
+  <h2>{{ views[view] }}</h2>
+  {% if view in ['preinscriptos','pre_candidates','pre_enrolled','candidates','all'] %}<p class="hint">Preinscriptos: solo son candidatos si SIAL los informa exclusivamente como preinscriptos, Moodle no devuelve cursos y Graph no devuelve equipos Teams directos. La selecci&oacute;n exige adem&aacute;s actividad Microsoft 365/Teams ausente y verificada durante 180 d&iacute;as; actividad reciente, hist&oacute;rica o incompleta bloquea la baja.</p>{% endif %}
+  {% if view in ['aspirantes','asp_candidates'] %}<p class="hint">SIAL no informa documentaci&oacute;n adeudada ni actividades de ingreso pendientes. Aspirantes: la selecci&oacute;n exige cero cursos Moodle, cero equipos Teams directos y actividad Microsoft 365/Teams ausente y verificada durante 180 d&iacute;as.</p>{% endif %}
+  <form method="get" class="audit-toolbar audit-filter">
+    <input type="hidden" name="run_id" value="{{ run.id }}"><input type="hidden" name="view" value="{{ view }}">
+    <label>Alumno, DNI o usuario<input name="q" value="{{ q }}" type="search"></label>
+    <label>Filas por p&aacute;gina<select name="per_page">{% for size in [25,50,100,200,500] %}<option {% if per_page == size %}selected{% endif %}>{{ size }}</option>{% endfor %}</select></label>
+    <button type="submit">Filtrar</button>
+  </form>
+  <p class="hint">{{ total }} personas &middot; P&aacute;gina {{ page }} de {{ pages }} &middot; {{ candidate_count }} candidatos en este filtro &middot; {{ eligible_count }} habilitados para preparar baja</p>
+  <form method="post" action="/auditoria/{{ run.id }}/bajas/previa" data-selection-form>
+    <input type="hidden" name="token" value="{{ csrf }}"><input type="hidden" name="view" value="{{ view }}"><input type="hidden" name="q" value="{{ q }}">
+    <div class="audit-toolbar audit-selection">
+      <label class="inline-check"><input type="checkbox" name="all_filtered" value="yes" data-select-filter {% if not eligible_count or candidate_count is not defined %}disabled{% endif %}>Todos los candidatos habilitados del filtro ({{ eligible_count }})</label>
+      <button class="secondary" type="submit" data-preview-button disabled>Preparar baja de seleccionados</button>
+    </div>
+    <table class="audit-table">
+      <colgroup><col class="audit-check"><col style="width:26%"><col style="width:18%"><col style="width:17%"><col></colgroup>
+      <thead><tr><th><input type="checkbox" data-select-page aria-label="Seleccionar candidatos de esta p&aacute;gina"></th><th>Alumno</th><th>Moodle</th><th>Microsoft 365</th><th>Evaluaci&oacute;n</th></tr></thead>
+      <tbody>{% for p in people %}<tr>
+        <td>{% if p.deletion_eligible and not p.removed %}<input type="checkbox" name="dni" value="{{ p.dni }}" aria-label="Seleccionar {{ p.apellido or '' }} {{ p.nombre or '' }}">{% endif %}</td>
+        <td data-label="Alumno"><a href="/auditoria/{{ run.id }}/persona/{{ p.dni }}"><strong>{{ p.apellido or '' }}, {{ p.nombre or 'Sin nombre' }}</strong></a><br>DNI {{ p.dni }}<br><small>{{ p.upn }}</small><br><span class="audit-tag">{{ p.estados_sial }}</span></td>
+        <td data-label="Moodle">{{ p.moodle_estado }}<br>Cursos: {{ p.moodle_cursos_cantidad if p.moodle_cursos_cantidad is not none else 'Sin verificar' }}{% if p.moodle_cursos_cantidad %}<br><a href="/auditoria/{{ run.id }}/persona/{{ p.dni }}">Ver cursos</a>{% endif %}</td>
+        <td data-label="Microsoft">{{ p.microsoft_estado }}<br>Equipos: {{ p.teams_cantidad if p.teams_cantidad is not none else 'Sin verificar' }}</td>
+        <td data-label="Evaluaci&oacute;n">{% if p.removed %}<strong class="audit-ok">Baja resuelta</strong>{% elif p.candidate %}<strong class="audit-warning">Candidato: {{ p.candidate }}</strong>{% else %}<strong>No habilitado</strong>{% endif %}<br><small>{{ p.reason }}</small>{% if p.candidate and not p.deletion_eligible %}<br><small class="audit-warning">{{ p.deletion_block_reason }}</small>{% endif %}<br><small>Actividad 180 d&iacute;as: {{ p.actividad or 'Sin verificar' }}</small></td>
+      </tr>{% else %}<tr><td colspan="5">Sin resultados para este filtro.</td></tr>{% endfor %}</tbody>
+    </table>
+  </form>
+  <nav class="audit-pagination" aria-label="Paginaci&oacute;n">
+    {% if page > 1 %}<a href="{{ link(1) }}" aria-label="Primera p&aacute;gina">&laquo;</a><a href="{{ link(page-1) }}">Anterior</a>{% endif %}
+    <span>{{ page }} / {{ pages }}</span>
+    {% if page < pages %}<a href="{{ link(page+1) }}">Siguiente</a><a href="{{ link(pages) }}" aria-label="&Uacute;ltima p&aacute;gina">&raquo;</a>{% endif %}
+  </nav>
+</section>
+<section class="audit-band"><h2>Bit&aacute;cora de bajas</h2>{% for b in batches %}<p><a href="/auditoria/bajas/{{ b.id }}">Lote #{{ b.id }} &middot; {{ b.created_at|local_datetime }}</a> &middot; {{ b.actor }} &middot; {{ b.status }}<br><small>{{ b.message }}</small></p>{% else %}<p class="hint">Sin lotes de baja.</p>{% endfor %}</section>
+{% else %}<p class="hint">Sin auditor&iacute;as guardadas en este m&oacute;dulo.</p>{% endif %}
+<script src="/static/audit.js" defer></script>
+{% endblock %}

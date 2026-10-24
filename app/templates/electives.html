@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Electiva</h1>
+    <p>Matriculacion directa desde Excel hacia los cursos Moodle indicados en la propia planilla.</p>
+  </div>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="grid two matriculation-setup">
+  <div class="status-panel compact-panel">
+    <h2>Subir Excel</h2>
+    <form method="post" action="/electives/upload" enctype="multipart/form-data" class="stack">
+      <label>
+        Archivo Excel
+        <input type="file" name="file" accept=".xlsx,.xls" required>
+      </label>
+      <div class="filters-actions">
+        <button type="submit">Revisar columnas</button>
+      </div>
+      <p class="hint">El Excel debe traer DNI, nombres, apellidos y materia. Si faltan modalidad o codigo Moodle, podras elegir el grupo y confirmar los destinos antes de generar la previa.</p>
+    </form>
+  </div>
+
+  <aside class="status-panel compact-panel matriculation-history">
+    <h2>Ultimas previas</h2>
+    {% if runs %}
+    <div class="stack compact-list">
+      {% for run in runs %}
+      <div class="run-entry">
+        <a class="run-link {% if selected_run and selected_run.id == run.id %}active{% endif %}" href="/electives?run_id={{ run.id }}">
+          <strong>#{{ run.id }}</strong>
+          <span>{{ run.created_at|local_datetime }}</span>
+          <span class="pill {{ run.status }}">{{ run.status }}</span>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="hint">Todavia no hay previas Electiva.</p>
+    {% endif %}
+  </aside>
+</section>
+
+{% if selected_run %}
+<section class="status-panel batch-progress matriculation-progress" data-run-id="{{ selected_run.id }}" data-status="{{ selected_run.status }}">
+  <div class="progress-head">
+    <div>
+      <h2>Vista previa #{{ selected_run.id }}</h2>
+      <p class="hint">{{ selected_run.filename }} - {{ selected_run.created_at|local_datetime }}</p>
+    </div>
+    <span id="elective-status" class="pill {{ selected_run.status }}">{{ selected_run.status }}</span>
+  </div>
+
+  <div class="chips top-gap">
+    <span>Filas Excel: {{ selected_run.total_source_rows }}</span>
+    <span>Registros unicos: {{ selected_run.desired_rows }}</span>
+    <span>Listos para matricular: {{ selected_run.enroll_rows }}</span>
+    <span class="error-chip">Errores: {{ selected_run.error_rows }}</span>
+  </div>
+
+  {% if selected_run.status in ["queued", "running"] %}
+  <div class="progress-track top-gap"><div id="elective-fill" class="progress-fill" style="width: 0%"></div></div>
+  <p class="progress-meta"><span id="elective-count">{{ selected_run.execution_processed_rows }}/{{ selected_run.execution_total_rows }}</span><span id="elective-message">{{ selected_run.message }}</span></p>
+  {% else %}
+  <p class="hint top-gap">{{ selected_run.message }}</p>
+  {% endif %}
+
+  <div class="actions top-gap">
+    {% if actionable_count and selected_run.status not in ["queued", "running"] %}
+    <form method="post" action="/electives/runs/{{ selected_run.id }}/execute" onsubmit="return confirm('Matricular los registros habilitados en Moodle? No se crearan usuarios.');">
+      <button type="submit">Ejecutar matriculaciones ({{ actionable_count }})</button>
+    </form>
+    {% endif %}
+    <a class="button-link secondary" href="/matriculation?run_id={{ selected_run.id }}&view=all">Ver detalle y seleccionar filas</a>
+  </div>
+</section>
+
+<script>
+  (function () {
+    const box = document.querySelector(".matriculation-progress");
+    if (!box || !["queued", "running"].includes(box.dataset.status || "")) return;
+    const runId = box.dataset.runId;
+    const statusEl = document.getElementById("elective-status");
+    const fillEl = document.getElementById("elective-fill");
+    const countEl = document.getElementById("elective-count");
+    const messageEl = document.getElementById("elective-message");
+    async function tick() {
+      const response = await fetch(`/matriculation/runs/${runId}/progress`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      statusEl.textContent = data.status;
+      statusEl.className = `pill ${data.status}`;
+      fillEl.style.width = `${data.percent || 0}%`;
+      countEl.textContent = `${data.processed}/${data.total}`;
+      messageEl.textContent = data.message || "";
+      if (!["queued", "running"].includes(data.status)) {
+        window.location.href = `/electives?run_id=${encodeURIComponent(runId)}`;
+      }
+    }
+    tick();
+    setInterval(tick, 2000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

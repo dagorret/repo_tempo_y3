@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Notificaciones</h1>
+    <p>Envio masivo por TXT de inscripciones, filtrando por modalidad.</p>
+  </div>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="status-panel compact-panel">
+  <form method="post" action="/notifications/preview" enctype="multipart/form-data" class="consult-inline">
+    <label>
+      Archivo TXT o Excel
+      <input type="file" name="file" accept=".txt,.xlsx" required>
+    </label>
+    <div class="filters-actions">
+      <button type="submit">Procesar archivo</button>
+      <a class="button-link secondary" href="/notifications">Limpiar</a>
+    </div>
+  </form>
+  <p class="hint">TXT con separador <code>+</code> o Excel con asignacion de columnas.</p>
+</section>
+
+{% if preview %}
+<section class="consult-grid">
+  <article class="status-panel compact-panel">
+    <h2>Resumen de destinatarios</h2>
+    <dl class="compact-dl">
+      <div><dt>Archivo</dt><dd>{{ preview.filename }}</dd></div>
+      <div><dt>Total unicos</dt><dd>{{ preview.counts.all }}</dd></div>
+      <div><dt>A distancia</dt><dd>{{ preview.counts.distance }}</dd></div>
+      <div><dt>Presencial</dt><dd>{{ preview.counts.presential }}</dd></div>
+      <div><dt>Otros</dt><dd>{{ preview.counts.other }}</dd></div>
+    </dl>
+    <p class="hint">Se eliminan repetidos por email automaticamente.</p>
+  </article>
+
+  <article class="status-panel compact-panel">
+    <h2>Campaña de correo</h2>
+    <form method="post" action="/notifications/send" class="stack">
+      <input type="hidden" name="token" value="{{ token }}">
+
+      <label>
+        A quien enviar
+        <select name="target_mode">
+          <option value="all">Todos ({{ preview.counts.all }})</option>
+          <option value="distance">Solo A distancia ({{ preview.counts.distance }})</option>
+          <option value="presential">Solo Presencial ({{ preview.counts.presential }})</option>
+          <option value="other">Otros/indefinidos ({{ preview.counts.other }})</option>
+        </select>
+      </label>
+
+      <label>
+        Asunto
+        <input name="subject" value="{{ default_notification_subject }}" required>
+      </label>
+
+      <label>
+        Contenido
+        <textarea name="message_body" rows="10" required>{{ default_notification_message }}</textarea>
+      </label>
+
+      <div class="grid two notifications-batch">
+        <label>
+          Tamano de lote
+          <input type="number" name="batch_size" min="1" max="200" value="25">
+        </label>
+        <label>
+          Pausa entre lotes (seg)
+          <input type="number" name="pause_seconds" min="0" max="180" value="30">
+        </label>
+      </div>
+      <p class="hint">Variables opcionales: {full_name}, {first_name}, {last_name}, {dni}, {email}, {modality}</p>
+      <button type="submit">Iniciar envio</button>
+    </form>
+  </article>
+</section>
+
+<section>
+  <h2>Muestra (primeros 50)</h2>
+  <div class="table-wrap users-table-wrap">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>DNI</th>
+          <th>Apellido</th>
+          <th>Nombre</th>
+          <th>Modalidad</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview.recipients[:50] %}
+        <tr>
+          <td>{{ row.dni or "-" }}</td>
+          <td>{{ row.last_name or "-" }}</td>
+          <td>{{ row.first_name or "-" }}</td>
+          <td>{{ row.modality or "-" }}</td>
+          <td class="mono">{{ row.email }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if job_id %}
+<section class="status-panel compact-panel notification-job" data-job-id="{{ job_id }}">
+  <h2>Estado de envio</h2>
+  <div class="progress-head">
+    <span id="job-status" class="pill {{ job.status if job else 'queued' }}">{{ job.status if job else 'queued' }}</span>
+    <span id="job-counts">{{ (job.processed if job else 0) }}/{{ (job.total if job else 0) }}</span>
+  </div>
+  <div class="progress-track">
+    <div id="job-fill" class="progress-fill" style="width: 0%"></div>
+  </div>
+  <div class="progress-meta">
+    <span>Enviados: <strong id="job-sent">{{ job.sent if job else 0 }}</strong></span>
+    <span>Errores: <strong id="job-failed">{{ job.failed if job else 0 }}</strong></span>
+  </div>
+  <p id="job-errors" class="hint"></p>
+</section>
+<script>
+  (function () {
+    const box = document.querySelector(".notification-job");
+    if (!box) return;
+    const jobId = box.dataset.jobId;
+    const statusEl = document.getElementById("job-status");
+    const countsEl = document.getElementById("job-counts");
+    const fillEl = document.getElementById("job-fill");
+    const sentEl = document.getElementById("job-sent");
+    const failedEl = document.getElementById("job-failed");
+    const errorsEl = document.getElementById("job-errors");
+
+    let stop = false;
+    async function tick() {
+      if (stop) return;
+      try {
+        const response = await fetch(`/notifications/jobs/${jobId}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const total = data.total || 0;
+        const processed = data.processed || 0;
+        const percent = total > 0 ? Math.floor((processed * 100) / total) : 0;
+
+        statusEl.textContent = data.status;
+        statusEl.className = `pill ${data.status}`;
+        countsEl.textContent = `${processed}/${total}`;
+        fillEl.style.width = `${percent}%`;
+        sentEl.textContent = String(data.sent || 0);
+        failedEl.textContent = String(data.failed || 0);
+        if (Array.isArray(data.errors) && data.errors.length) {
+          errorsEl.textContent = data.errors.join(" | ");
+        } else {
+          errorsEl.textContent = "";
+        }
+
+        if (data.status === "completed" || data.status === "completed_with_errors") {
+          stop = true;
+        }
+      } catch (e) {
+        // noop
+      }
+    }
+
+    tick();
+    setInterval(tick, 2000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

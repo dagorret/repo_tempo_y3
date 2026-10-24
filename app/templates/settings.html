@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="/settings/audit">Auditor&iacute;a: SIAL y campa&ntilde;a de ingreso</a></p>
+<section class="ingreso-settings-link">
+  <h2>Configuraci&oacute;n de Ingreso</h2>
+  <a href="/settings/ingreso">Campa&ntilde;as, carreras y comisiones de Contabilidad</a>
+</section>
+<section class="split-title">
+  <div>
+    <h1>Configuración</h1>
+    <p>Estado del servicio web de Moodle utilizado por el CRM.</p>
+  </div>
+  <a class="button-link" href="/settings">Comprobar ahora</a>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+{% if result.status != "ok" %}
+<p class="alert"><strong>No se pudo auditar Moodle.</strong> {{ result.message }}</p>
+{% if audit_setup_required %}
+<p class="settings-action-note">Agregá <code>core_webservice_get_site_info</code> al servicio externo CRM-FCE para habilitar esta comprobación.</p>
+{% endif %}
+{% elif missing_functions %}
+<p class="alert"><strong>Configuración incompleta.</strong> Faltan {{ missing_functions|length }} funciones requeridas.</p>
+{% else %}
+<p class="ok-banner"><strong>Configuración operativa.</strong> Todas las funciones requeridas están habilitadas.</p>
+{% endif %}
+
+<section class="settings-summary">
+  <div>
+    <span>Conexión</span>
+    <strong>{{ "Disponible" if result.status == "ok" else "Sin verificar" }}</strong>
+  </div>
+  <div>
+    <span>Requeridas</span>
+    <strong>{{ (verified_count ~ '/' ~ expected_count) if result.status == 'ok' else 'Sin datos' }}</strong>
+  </div>
+  <div>
+    <span>Adicionales</span>
+    <strong>{{ extra_functions|length }}</strong>
+  </div>
+  <div>
+    <span>Moodle</span>
+    <strong>{{ site_info.sitename or settings.moodle_base_url or "No configurado" }}</strong>
+  </div>
+</section>
+
+<section class="status-panel compact-panel settings-control top-gap">
+  <div>
+    <h2>Control de carga académica</h2>
+    <p class="hint">Marca estudiantes con esta cantidad de materias o más dentro de cada Lincu subido.</p>
+  </div>
+  <form method="post" action="/settings/matriculation" class="settings-threshold-form">
+    <label>
+      Materias
+      <input type="number" name="course_alert_threshold" min="1" max="30" value="{{ settings.matriculation_course_alert_threshold }}" required>
+    </label>
+    <button type="submit">Guardar</button>
+  </form>
+</section>
+
+<section class="status-panel compact-panel settings-control top-gap">
+  <div>
+    <h2>Licencias Microsoft 365</h2>
+    <p class="hint">Consulta y guarda los SKU de estudiantes y docentes que usa el CRM al crear cuentas.</p>
+  </div>
+  <a class="button-link secondary" href="/skus">Administrar licencias</a>
+</section>
+
+<section class="top-gap">
+  <div class="list-toolbar">
+    <div>
+      <h2>Funciones del CRM</h2>
+      <p class="hint">Comprobación de disponibilidad; no ejecuta altas, bajas ni matriculaciones.</p>
+    </div>
+  </div>
+  <div class="table-wrap users-table-wrap">
+    <table class="users-table settings-functions-table">
+      <thead>
+        <tr>
+          <th>Función</th>
+          <th>Área</th>
+          <th>Tipo</th>
+          <th>Uso</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for function in function_rows %}
+        <tr>
+          <td class="mono">{{ function.name }}</td>
+          <td>{{ function.area }}</td>
+          <td>{{ function.mode }}</td>
+          <td>{{ function.purpose }}</td>
+          <td>
+            {% if function.enabled is sameas true %}
+            <span class="pill ok">Habilitada</span>
+            {% elif function.enabled is sameas false %}
+            <span class="pill error">Falta</span>
+            {% else %}
+            <span class="pill skipped">Sin verificar</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if extra_functions %}
+<section class="top-gap">
+  <details class="status-panel settings-extra-functions">
+    <summary>Funciones adicionales habilitadas ({{ extra_functions|length }})</summary>
+    <div class="settings-function-list">
+      {% for function in extra_functions %}
+      <code>{{ function }}</code>
+      {% endfor %}
+    </div>
+  </details>
+</section>
+{% endif %}
+{% endblock %}

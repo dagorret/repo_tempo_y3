@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Asociar columnas Electiva</h1>
+    <p>{{ filename }}</p>
+  </div>
+  <a class="button-link secondary" href="/electives">Cancelar</a>
+</section>
+
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="grid two">
+  <form method="post" action="/electives/preview" class="stack">
+    <input type="hidden" name="token" value="{{ token }}">
+    <label>
+      DNI
+      <select name="document_column" required>
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.document == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Nombre
+      <select name="first_name_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.first_name == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Apellido
+      <select name="last_name_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.last_name == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Apellido y nombres (columna combinada)
+      <select name="full_name_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.full_name == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Modalidad (si existe en el Excel)
+      <select name="modality_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.modality == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Grupo para filas sin modalidad
+      <select name="default_group" {% if not mapping.modality %}required{% endif %}>
+        <option value="" {% if not default_group %}selected{% endif %}>Elegir P o D</option>
+        <option value="P" {% if default_group == "P" %}selected{% endif %}>Presencial (grupo P)</option>
+        <option value="D" {% if default_group == "D" %}selected{% endif %}>A distancia (grupo D)</option>
+      </select>
+    </label>
+    <label>
+      Codigo Moodle / shortname (si tiene columna propia)
+      <select name="course_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.course == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Materia (referencia opcional)
+      <select name="subject_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.subject == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Email personal (opcional)
+      <select name="email_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}<option value="{{ column }}" {% if mapping.email == column %}selected{% endif %}>{{ column }}</option>{% endfor %}
+      </select>
+    </label>
+
+    {% if subject_summaries %}
+    <div>
+      <h2>Destinos detectados</h2>
+      <p class="hint">Revisa el shortname Moodle de cada materia. El codigo entre parentesis se aplica a todas las filas con el mismo nombre.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Materia</th><th>Filas</th><th>Shortname Moodle</th></tr>
+          </thead>
+          <tbody>
+            {% for subject in subject_summaries %}
+            <tr>
+              <td>
+                {{ subject.label }}
+                <input type="hidden" name="subject_keys" value="{{ subject.key }}">
+              </td>
+              <td>{{ subject.row_count }}</td>
+              <td>
+                <input name="subject_courses" value="{{ subject.suggested_course }}" placeholder="Ej: 401" required>
+                {% if subject.candidate_courses|length > 1 %}
+                <small class="hint">Codigos encontrados: {{ subject.candidate_courses|join(", ") }}</small>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+    <button type="submit">Generar vista previa</button>
+  </form>
+
+  <aside class="status-panel">
+    <h2>Control previo</h2>
+    <dl>
+      <div><dt>Nombres</dt><dd>Si vienen juntos como APELLIDO Y NOMBRES, se separan y se validan contra el perfil Moodle.</dd></div>
+      <div><dt>Modalidad</dt><dd>Si existe, A DISTANCIA se asigna a D y PRESENCIAL a P. Si falta, se usa el grupo general elegido.</dd></div>
+      <div><dt>Curso</dt><dd>El destino editable debe coincidir exactamente con el shortname Moodle.</dd></div>
+      <div><dt>Grupo</dt><dd>Si falta P o D, se creara al ejecutar.</dd></div>
+      <div><dt>Usuarios</dt><dd>Solo se habilitan usuarios que ya existen en Moodle.</dd></div>
+      <div><dt>Alcance</dt><dd>No crea usuarios, no toca Teams y no envia correos.</dd></div>
+    </dl>
+  </aside>
+</section>
+
+<section>
+  <h2>Vista previa del archivo</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>{% for column in columns %}<th>{{ column }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in sample_rows %}
+        <tr>{% for column in columns %}<td>{{ row[column] }}</td>{% endfor %}</tr>
+        {% else %}
+        <tr><td>Sin filas para mostrar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

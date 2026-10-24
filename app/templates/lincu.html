@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Lincu</h1>
+    <p>Cruce de inscripciones Lincu con CSV de ingresos por estudiante.</p>
+  </div>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="status-panel compact-panel">
+  <form method="post" action="/lincu/process" enctype="multipart/form-data" class="stack">
+    <label>
+      Lincu TXT
+      <input type="file" name="lincu_file" accept=".txt" required>
+    </label>
+    <label>
+      CSV de ingresos
+      <input type="file" name="ingresos_file" accept=".csv" required>
+    </label>
+    <div class="filters-actions">
+      <button type="submit">Procesar</button>
+      <a class="button-link secondary" href="/lincu">Limpiar</a>
+    </div>
+  </form>
+</section>
+
+{% if job_id %}
+<section class="status-panel compact-panel lincu-job" data-job-id="{{ job_id }}" data-status="{{ job.status if job else 'queued' }}">
+  <h2>Estado del proceso</h2>
+  <div class="progress-head">
+    <span id="lincu-status" class="pill {{ job.status if job else 'queued' }}">{{ job.status if job else 'queued' }}</span>
+    <span id="lincu-stage">{{ job.stage if job else 'En cola' }}</span>
+  </div>
+  <div class="progress-track top-gap">
+    <div id="lincu-fill" class="progress-fill" style="width: {{ job.progress if job else 0 }}%"></div>
+  </div>
+  {% if job and job.error %}
+  <p id="lincu-error" class="alert top-gap">{{ job.error }}</p>
+  {% else %}
+  <p id="lincu-error" class="hint top-gap"></p>
+  {% endif %}
+</section>
+
+{% if job and job.status == "completed" %}
+<section class="status-panel compact-panel">
+  <h2>Resultado</h2>
+  <div class="chips">
+    <span>Filas Lincu: {{ job.summary.total_lincu_rows or 0 }}</span>
+    <span>Filas CSV ingresos: {{ job.summary.total_ingresos_rows or 0 }}</span>
+    <span>Estudiantes resultado: {{ job.summary.students_with_ingresos or 0 }}</span>
+  </div>
+  <div class="actions top-gap">
+    <a class="button-link" href="/lincu/jobs/{{ job_id }}/export.xlsx">Descargar Excel</a>
+  </div>
+</section>
+
+<section>
+  <h2>Listado</h2>
+  <div class="table-wrap users-table-wrap">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>DNI</th>
+          <th>Apellido</th>
+          <th>Nombre</th>
+          <th>UPN</th>
+          <th>Ingresos</th>
+          <th>Materias (Lincu)</th>
+          <th>Modalidad</th>
+          <th>Email personal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in job.rows %}
+        <tr>
+          <td>{{ row.dni }}</td>
+          <td>{{ row.last_name }}</td>
+          <td>{{ row.first_name }}</td>
+          <td class="mono">{{ row.upn }}</td>
+          <td>{{ row.ingresos }}</td>
+          <td>{{ row.materias_lincu }}</td>
+          <td>{{ row.modality or "-" }}</td>
+          <td class="mono">{{ row.email_personal }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8">Sin resultados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<script>
+  (function () {
+    const box = document.querySelector(".lincu-job");
+    if (!box) return;
+    const jobId = box.dataset.jobId;
+    const initialStatus = box.dataset.status || "queued";
+    const statusEl = document.getElementById("lincu-status");
+    const stageEl = document.getElementById("lincu-stage");
+    const fillEl = document.getElementById("lincu-fill");
+    const errorEl = document.getElementById("lincu-error");
+    let stop = initialStatus === "completed" || initialStatus === "failed";
+
+    async function tick() {
+      if (stop) return;
+      try {
+        const response = await fetch(`/lincu/jobs/${jobId}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const status = data.status || "queued";
+        const progress = Number(data.progress || 0);
+        statusEl.textContent = status;
+        statusEl.className = `pill ${status}`;
+        stageEl.textContent = data.stage || "";
+        fillEl.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        errorEl.textContent = data.error || "";
+        if (status === "completed" || status === "failed") {
+          stop = true;
+          window.location.href = `/lincu?job_id=${encodeURIComponent(jobId)}`;
+        }
+      } catch (e) {
+        // noop
+      }
+    }
+
+    tick();
+    setInterval(tick, 2000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

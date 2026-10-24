@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <h1>Licencias Microsoft 365</h1>
+  <p class="hint">Configura los SKU que usa el CRM para asignar licencias.</p>
+  {% if message %}
+  <p class="ok-banner">{{ message }}</p>
+  {% endif %}
+  {% if error %}
+  <p class="alert">{{ error }}</p>
+  {% endif %}
+  <form method="post" class="stack settings-form">
+    <label>
+      SKU Estudiantes
+      <input name="azure_student_sku_id" value="{{ settings.azure_student_sku_id }}" placeholder="AZURE_STUDENT_SKU_ID">
+    </label>
+    <label>
+      SKU Docentes
+      <input name="azure_teacher_sku_id" value="{{ settings.azure_teacher_sku_id }}" placeholder="AZURE_TEACHER_SKU_ID">
+    </label>
+    <button type="submit">Guardar licencias</button>
+  </form>
+  <p class="hint">Estos valores se guardan en <code>.env</code>. Podes cargar el GUID <code>skuId</code> o el codigo <code>skuPartNumber</code>.</p>
+</section>
+{% endblock %}

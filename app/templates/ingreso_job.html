@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block shell_class %}shell-wide{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/ingreso.css">
+<header class="ingreso-toolbar"><h1>{{ kinds[job.kind] }} &middot; #{{ job.id }}</h1><a href="/ingreso?campaign_id={{ campaign.id }}&amp;section={{ job.kind if job.kind != 'sync' else 'sial' }}">Volver a {{ campaign.name }}</a></header>
+{% if message %}<p class="alert" role="status">{{ message }}</p>{% endif %}
+{% if not write_enabled %}<p class="ingreso-mode">Modo preparaci&oacute;n. No se crean cuentas, matr&iacute;culas ni se env&iacute;an correos.</p>{% endif %}
+<section class="ingreso-band" {% if job.status in ['queued','running','queued_execute'] %}data-ingreso-progress="/ingreso/jobs/{{ job.id }}/progress"{% endif %}><strong>{{ states.get(job.status,job.status) }}</strong> &middot; {{ job.created_at|local_datetime }} &middot; {{ job.actor }}<p data-job-message role="status">{{ job.message }}</p>{% if job.status in ['queued','running','queued_execute'] %}<progress max="{{ job.total or 1 }}" value="{{ job.processed }}" aria-label="Progreso"></progress>{% endif %}</section>
+{% if job.kind != 'sync' %}
+<nav class="ingreso-tabs" aria-label="Resultados"><a href="{{ link(1,'all') }}">Todos</a>{% for key,count in counts.items() %}<a href="{{ link(1,key) }}" {% if view == key %}aria-current="page"{% endif %}>{{ states.get(key,key) }}: {{ count }}</a>{% endfor %}</nav>
+<form method="get" class="ingreso-toolbar"><input type="hidden" name="view" value="{{ view }}"><p>{{ total }} filas &middot; {{ eligible }} pendientes en este filtro</p><label>Filas por p&aacute;gina<select name="per_page" onchange="this.form.submit()">{% for n in [25,50,100,200,500] %}<option {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label></form>
+<form method="post" action="/ingreso/jobs/{{ job.id }}/execute" data-ingreso-selection>
+<input type="hidden" name="token" value="{{ csrf }}"><input type="hidden" name="view" value="{{ view }}">
+{% set can_execute = write_enabled and job.status not in ['queued','running','queued_execute'] %}
+<div class="ingreso-toolbar ingreso-band"><label class="inline-check"><input type="checkbox" name="all_filtered" value="yes" data-select-filter {% if not can_execute or not eligible %}disabled{% endif %}>Todos los pendientes del filtro ({{ eligible }})</label><span data-selection-count>0 seleccionados</span></div>
+<table class="ingreso-table"><colgroup><col style="width:36px"><col style="width:28%"><col style="width:34%"><col></colgroup><thead><tr><th><input type="checkbox" data-select-page aria-label="Seleccionar pagina" {% if not can_execute %}disabled{% endif %}></th><th>Estudiante</th><th>{{ 'Cuenta Microsoft' if job.kind == 'microsoft' else 'Matriculas y grupos' }}</th><th>Estado / detalle</th></tr></thead><tbody>
+{% for row in rows %}{% set t = row.task %}{% set p = row.data %}<tr>
+<td>{% if t.status in ['ready','error'] %}<input type="checkbox" name="task_id" value="{{ t.id }}" aria-label="Seleccionar {{ p.dni }}" {% if not can_execute %}disabled{% endif %}>{% endif %}</td>
+<td data-label="Estudiante"><strong>{{ p.last_name }}, {{ p.first_name or 'Sin nombre' }}</strong><br>DNI {{ p.dni }}<br><small>{{ p.upn }}</small>{% if job.kind == 'microsoft' %}<br><small>{{ p.email }}</small>{% endif %}</td>
+<td data-label="Previsto">{% if p.plan is defined %}{% if job.kind == 'microsoft' %}{{ 'Crear cuenta + licencia + correo' if p.plan.action == 'create' else 'Completar licencia/correo pendiente' if p.plan.action == 'resume' else 'Existe: sin cambios ni correo' }}{% else %}{% for target in p.plan.targets %}<div class="ingreso-target"><strong>{{ target.course }} &middot; {{ target.group }}</strong><br><small>{{ 'Matricula existente' if target.enrolled else 'Matricular' }} &middot; {{ 'Grupo correcto' if target.member else 'Agregar al grupo' if target.group_id else 'Crear grupo' }}</small></div>{% endfor %}{% if not p.plan.user_id %}<p>Crear usuario Moodle</p>{% endif %}{% for old in p.plan.remove_groups %}<p class="ingreso-warning">Retirar grupo {{ old.group }} de {{ old.course }} (gestionado por Ingreso)</p>{% endfor %}{% if p.plan.retained_courses %}<p class="hint">Cursos anteriores conservados: {{ p.plan.retained_courses|join(', ') }}</p>{% endif %}{% endif %}{% else %}Pendiente de verificaci&oacute;n{% endif %}</td>
+<td data-label="Estado"><strong class="{{ 'ingreso-warning' if t.status in ['blocked','error','partial'] else '' }}">{{ states.get(t.status,t.status) }}</strong><p>{{ t.message }}</p></td>
+</tr>{% else %}<tr><td colspan="4">Sin filas para este filtro.</td></tr>{% endfor %}</tbody></table>
+{% if can_execute %}<div class="ingreso-toolbar ingreso-band"><label>Confirmaci&oacute;n: PROCESAR<input name="confirmation" pattern="PROCESAR" autocomplete="off" required></label><button type="submit" data-execute-button disabled>{{ 'Crear cuentas y enviar correos' if job.kind == 'microsoft' else 'Ejecutar matriculaciones Moodle' }}</button></div>{% endif %}
+</form>
+<nav class="ingreso-pagination" aria-label="Paginacion">{% if page > 1 %}<a href="{{ link(page-1) }}">Anterior</a>{% endif %}<span>{{ page }} / {{ pages }}</span>{% if page < pages %}<a href="{{ link(page+1) }}">Siguiente</a>{% endif %}</nav>
+{% endif %}
+<script src="/static/ingreso.js" defer></script>
+{% endblock %}

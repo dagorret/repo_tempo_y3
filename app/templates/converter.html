@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Conversor</h1>
+    <p>Equivalencias entre los codigos de Lincu y los cursos de Moodle.</p>
+  </div>
+  <span class="pill ok">{{ rule_count }} reglas</span>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="status-panel compact-panel">
+  <h2>Agregar equivalencia</h2>
+  <form method="post" action="/converter/add" class="converter-add-grid">
+    <label>
+      Curso Moodle (Actual)
+      <input name="actual_code" inputmode="numeric" placeholder="Ej: 106" required>
+    </label>
+    <label>
+      Codigo Lincu alternativo (Viejo)
+      <input name="old_code" inputmode="numeric" placeholder="Ej: 3808">
+    </label>
+    <label>
+      Regla Cat.
+      <input name="category_rule" placeholder="Vacio, 2, X o X*">
+    </label>
+    <label>
+      Regis
+      <input name="registration_rule" placeholder="Opcional">
+    </label>
+    <button type="submit">Agregar regla</button>
+  </form>
+  <p class="hint top-gap">Ejemplo: Actual 106 + Viejo 3808 convierte el codigo Lincu 3808 al curso Moodle 106.</p>
+</section>
+
+<section>
+  <div class="list-toolbar converter-toolbar">
+    <div>
+      <h2>Tabla de conversion</h2>
+      <p class="hint list-summary">Las reglas X, X* y 105 conservan el comportamiento del conversor original. Los nombres detectados provienen del historial local de archivos Lincu.</p>
+    </div>
+    <form method="get" action="/converter" class="converter-search">
+      <label>
+        Buscar codigo o regla
+        <input name="q" value="{{ q }}" placeholder="Ej: 106 o 3808">
+      </label>
+      <button type="submit">Buscar</button>
+      {% if q %}<a class="button-link secondary" href="/converter">Limpiar</a>{% endif %}
+    </form>
+  </div>
+
+  <div class="table-wrap converter-table-wrap">
+    <table class="converter-table">
+      <thead>
+        <tr>
+          <th>Actual</th>
+          <th>Viejo / alternativo</th>
+          <th>Cat.</th>
+          <th>Regis</th>
+          <th>Entrada Lincu</th>
+          <th>Resultado Moodle</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rule in rules %}
+        <tr>
+          <td>
+            <input form="rule-{{ rule.id }}" name="actual_code" value="{{ rule.actual_code }}" inputmode="numeric" aria-label="Actual regla {{ rule.id }}" required>
+            {% if course_names.get(rule.actual_code) %}<span class="course-rule-name">{{ course_names[rule.actual_code] }}</span>{% endif %}
+          </td>
+          <td><input form="rule-{{ rule.id }}" name="old_code" value="{{ rule.old_code }}" inputmode="numeric" aria-label="Viejo regla {{ rule.id }}"></td>
+          <td><input form="rule-{{ rule.id }}" name="category_rule" value="{{ rule.category_rule }}" aria-label="Catedra regla {{ rule.id }}"></td>
+          <td><input form="rule-{{ rule.id }}" name="registration_rule" value="{{ rule.registration_rule }}" aria-label="Regis regla {{ rule.id }}"></td>
+          <td><span class="mono">{{ rule.old_code or rule.actual_code }}</span></td>
+          <td><strong class="mono">{{ conversion_result(rule) }}</strong></td>
+          <td class="converter-actions">
+            <form id="rule-{{ rule.id }}" method="post" action="/converter/{{ rule.id }}/update">
+              <input type="hidden" name="q" value="{{ q }}">
+              <button type="submit" class="small">Guardar</button>
+            </form>
+            <form method="post" action="/converter/{{ rule.id }}/delete" onsubmit="return confirm('Eliminar esta regla de conversion?');">
+              <input type="hidden" name="q" value="{{ q }}">
+              <button type="submit" class="danger small">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">No se encontraron reglas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

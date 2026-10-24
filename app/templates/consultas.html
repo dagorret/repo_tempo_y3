@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Consultas</h1>
+    <p>Consulta por DNI, creacion de cuenta y matriculacion puntual.</p>
+  </div>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="status-panel compact-panel">
+  <form method="get" action="/consultas" class="consult-inline dual">
+    <label>
+      Alumno (DNI)
+      <input name="dni" value="{{ dni }}" placeholder="Ej: 26855000">
+    </label>
+    <label>
+      Profesor (inicial+apellido o usuario completo)
+      <input name="teacher_key" value="{{ teacher_key }}" placeholder="Ej: ibranquer o romina-yppolito@eco.unrc.edu.ar">
+    </label>
+    <div class="filters-actions">
+      <button type="submit">Consultar</button>
+      <a class="button-link secondary" href="/consultas">Limpiar</a>
+    </div>
+  </form>
+</section>
+
+{% if result %}
+<section class="consult-grid">
+  <article class="status-panel compact-panel">
+    <h2>Cuenta Microsoft</h2>
+    <dl class="compact-dl">
+      <div><dt>Tipo</dt><dd>{{ "Estudiante" if result.person_type == "student" else "Profesor" }}</dd></div>
+      <div><dt>Identificador</dt><dd>{{ result.lookup_key }}</dd></div>
+      <div><dt>UPN</dt><dd class="mono">{{ result.upn }}</dd></div>
+      <div>
+        <dt>Estado</dt>
+        <dd><span class="pill {{ 'ok' if result.azure_exists else result.azure_status }}">{{ 'exists' if result.azure_exists else result.azure_status }}</span></dd>
+      </div>
+    </dl>
+
+    {% if not result.azure_exists %}
+    <form method="post" action="/consultas/create-account" class="stack top-gap">
+      <input type="hidden" name="person_type" value="{{ result.person_type }}">
+      <input type="hidden" name="dni" value="{{ result.lookup_key if result.person_type == 'student' else '' }}">
+      <input type="hidden" name="teacher_key" value="{{ result.lookup_key if result.person_type == 'teacher' else '' }}">
+      <label>
+        Nombre
+        <input name="first_name" value="{{ result.managed_user.first_name if result.managed_user else '' }}" required>
+      </label>
+      <label>
+        Apellido
+        <input name="last_name" value="{{ result.managed_user.last_name if result.managed_user else '' }}" required>
+      </label>
+      <label>
+        Email personal (para envio de clave)
+        <input name="contact_email" value="{{ result.managed_user.contact_email if result.managed_user else '' }}">
+      </label>
+      <button type="submit">Crear cuenta Microsoft</button>
+    </form>
+    {% endif %}
+  </article>
+
+  <article class="status-panel compact-panel">
+    <h2>Moodle y cursos</h2>
+    <dl class="compact-dl">
+      <div>
+        <dt>Usuario Moodle</dt>
+        <dd><span class="pill {{ 'ok' if result.moodle_exists else 'missing' }}">{{ 'exists' if result.moodle_exists else 'missing' }}</span></dd>
+      </div>
+    </dl>
+    {% if result.moodle_courses_error %}
+    <p class="hint">{{ result.moodle_courses_error }}</p>
+    {% endif %}
+    <div class="table-wrap users-table-wrap top-gap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Shortname</th>
+            <th>Curso</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for course in result.moodle_courses %}
+          <tr>
+            <td class="mono">{{ course.shortname or '-' }}</td>
+            <td>{{ course.fullname or '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="2">Sin cursos informados en Moodle para esta cuenta.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if result.azure_exists %}
+    <form method="post" action="/consultas/enroll" class="stack top-gap">
+      <input type="hidden" name="person_type" value="{{ result.person_type }}">
+      <input type="hidden" name="dni" value="{{ result.lookup_key if result.person_type == 'student' else '' }}">
+      <input type="hidden" name="teacher_key" value="{{ result.lookup_key if result.person_type == 'teacher' else '' }}">
+      <label>
+        Matricular en cursos (shortname)
+        <input name="course_shortname" placeholder="Ej: 9040 o 9040,9041" required>
+      </label>
+      <label>
+        Grupo Moodle (opcional)
+        <input name="group_name" maxlength="120" placeholder="Ej: P, D o Comision A">
+        <small class="hint">Se aplica a todos los cursos indicados. Si no existe en alguno, el CRM lo crea automaticamente.</small>
+      </label>
+      <label>
+        Nombre (si hay que crear usuario Moodle)
+        <input name="first_name" value="{{ result.managed_user.first_name if result.managed_user else '' }}">
+      </label>
+      <label>
+        Apellido (si hay que crear usuario Moodle)
+        <input name="last_name" value="{{ result.managed_user.last_name if result.managed_user else '' }}">
+      </label>
+      <label>
+        Email personal (opcional)
+        <input name="contact_email" value="{{ result.managed_user.contact_email if result.managed_user else '' }}">
+      </label>
+      <button type="submit">Matricular</button>
+    </form>
+    {% endif %}
+
+    {% if available_courses %}
+    <p class="hint">Cursos cargados en el sistema: {{ available_courses|join(', ') }}</p>
+    {% endif %}
+  </article>
+</section>
+{% endif %}
+{% endblock %}

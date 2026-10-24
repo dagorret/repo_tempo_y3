@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>{{ person_type_label }}</h1>
+    <p>Gestion local de usuarios importados</p>
+  </div>
+</section>
+
+{% if message %}
+<p class="ok-banner">{{ message }}</p>
+{% endif %}
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="status-panel compact-panel">
+  <form method="get" action="/users/{{ person_type }}" class="filters-inline{% if person_type == 'teacher' %} teacher-filters{% endif %}">
+    <input type="hidden" name="per_page" value="{{ page_size }}">
+    <label>
+      DNI
+      <input name="dni" value="{{ dni }}" placeholder="Ej: 26855000">
+    </label>
+    <label>
+      {% if person_type == "teacher" %}Docente (inicial/apellido){% else %}Nombre o usuario{% endif %}
+      <input name="name_query" value="{{ name_query }}" placeholder="{% if person_type == 'teacher' %}Ej: mgarcia o Maria Garcia{% else %}Ej: Abba o a43928369{% endif %}">
+    </label>
+    <label>
+      Curso (shortname)
+      <select name="course_shortname">
+        <option value="">Todos</option>
+        {% for code in available_courses %}
+        <option value="{{ code }}" {% if course_shortname == code %}selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Curso por nombre/codigo
+      <input name="course_query" value="{{ course_query }}" placeholder="Ej: 9040 o Matematica">
+    </label>
+    <div class="filters-actions">
+      <button type="submit">Filtrar</button>
+      <a class="button-link secondary" href="/users/{{ person_type }}">Limpiar</a>
+    </div>
+  </form>
+</section>
+
+<section>
+  <div class="list-toolbar">
+    <p class="hint list-summary">
+      Mostrando {{ start_row }}{% if end_row and end_row != start_row %}-{{ end_row }}{% endif %} de {{ total_users }} usuarios.
+      {% if total_pages > 1 %}Pagina {{ current_page }} de {{ total_pages }}.{% endif %}
+    </p>
+    <form method="get" action="/users/{{ person_type }}" class="pagination-size">
+      <input type="hidden" name="dni" value="{{ dni }}">
+      <input type="hidden" name="name_query" value="{{ name_query }}">
+      <input type="hidden" name="course_shortname" value="{{ course_shortname }}">
+      <input type="hidden" name="course_query" value="{{ course_query }}">
+      <label>
+        Usuarios por pagina
+        <select name="per_page" onchange="this.form.submit()">
+          {% for size in [25, 50, 100] %}
+          <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+    {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Paginacion superior">
+      {% if prev_page_url %}
+      <a class="button-link secondary pagination-link" href="{{ prev_page_url }}">Anterior</a>
+      {% endif %}
+      {% for page_number in pagination_pages %}
+        {% if page_number %}
+          {% if page_number == current_page %}
+          <strong class="pagination-current">{{ page_number }}</strong>
+          {% else %}
+          <a class="button-link secondary pagination-link" href="{{ pagination_urls[page_number] }}">{{ page_number }}</a>
+          {% endif %}
+        {% else %}
+        <span class="pagination-gap">...</span>
+        {% endif %}
+      {% endfor %}
+      {% if next_page_url %}
+      <a class="button-link secondary pagination-link" href="{{ next_page_url }}">Siguiente</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+
+  <div class="table-wrap users-table-wrap">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>DNI</th>
+          <th>Nombre</th>
+          <th>UPN</th>
+          <th>Email personal</th>
+          <th>Curso</th>
+          <th>Accion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+          {% set rows = enrollments_by_user.get(user.id, []) %}
+          {% if rows %}
+            {% for e in rows %}
+            <tr{% if loop.first %} class="user-row-start"{% endif %}>
+              {% if loop.first %}
+              {% set row_count = rows|length %}
+              <td rowspan="{{ row_count }}">{{ user.document or "-" }}</td>
+              <td rowspan="{{ row_count }}"><strong>{{ user.full_name or (user.first_name ~ " " ~ user.last_name) }}</strong></td>
+              <td rowspan="{{ row_count }}" class="mono">{{ user.upn }}</td>
+              <td rowspan="{{ row_count }}">{{ user.contact_email or "-" }}</td>
+              {% endif %}
+              <td>
+                <span class="chips-inline">{{ e.course_shortname }}{% if e.course_name %} - {{ e.course_name }}{% endif %}</span>
+              </td>
+              <td>
+                <div class="row-actions-inline">
+                <form method="post" action="/users/{{ person_type }}/unenroll/{{ e.id }}" onsubmit="return confirm('Desmatricular de {{ e.course_shortname }}?');">
+                  <input type="hidden" name="return_page" value="{{ current_page }}">
+                  <input type="hidden" name="return_per_page" value="{{ page_size }}">
+                  <input type="hidden" name="return_dni" value="{{ dni }}">
+                  <input type="hidden" name="return_name_query" value="{{ name_query }}">
+                  <input type="hidden" name="return_course_shortname" value="{{ course_shortname }}">
+                  <input type="hidden" name="return_course_query" value="{{ course_query }}">
+                  <button type="submit" class="danger small">Desmatricular</button>
+                </form>
+                <form method="post" action="/users/{{ person_type }}/unenroll-local/{{ e.id }}" onsubmit="return confirm('Quitar esta matricula solo del CRM local? No modifica Moodle.');">
+                  <input type="hidden" name="return_page" value="{{ current_page }}">
+                  <input type="hidden" name="return_dni" value="{{ dni }}">
+                  <input type="hidden" name="return_name_query" value="{{ name_query }}">
+                  <input type="hidden" name="return_course_shortname" value="{{ course_shortname }}">
+                  <input type="hidden" name="return_course_query" value="{{ course_query }}">
+                  <button type="submit" class="soft small">Limpiar matricula</button>
+                </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+          <tr>
+            <td>{{ user.document or "-" }}</td>
+            <td>{{ user.full_name or (user.first_name ~ " " ~ user.last_name) }}</td>
+            <td class="mono">{{ user.upn }}</td>
+            <td>{{ user.contact_email or "-" }}</td>
+            <td>-</td>
+            <td>
+              <form method="post" action="/users/{{ person_type }}/purge-local/{{ user.id }}" onsubmit="return confirm('Limpiar este usuario solo del CRM local? No elimina en Microsoft ni Moodle.');">
+                <input type="hidden" name="return_page" value="{{ current_page }}">
+                <input type="hidden" name="return_per_page" value="{{ page_size }}">
+                <input type="hidden" name="return_dni" value="{{ dni }}">
+                <input type="hidden" name="return_name_query" value="{{ name_query }}">
+                <input type="hidden" name="return_course_shortname" value="{{ course_shortname }}">
+                <input type="hidden" name="return_course_query" value="{{ course_query }}">
+                <button type="submit" class="soft small">Limpiar local</button>
+              </form>
+            </td>
+          </tr>
+          {% endif %}
+        {% else %}
+        <tr><td colspan="6">Sin usuarios para el filtro actual.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination pagination-bottom" aria-label="Paginacion inferior">
+    {% if prev_page_url %}
+    <a class="button-link secondary pagination-link" href="{{ prev_page_url }}">Anterior</a>
+    {% endif %}
+    {% for page_number in pagination_pages %}
+      {% if page_number %}
+        {% if page_number == current_page %}
+        <strong class="pagination-current">{{ page_number }}</strong>
+        {% else %}
+        <a class="button-link secondary pagination-link" href="{{ pagination_urls[page_number] }}">{{ page_number }}</a>
+        {% endif %}
+      {% else %}
+      <span class="pagination-gap">...</span>
+      {% endif %}
+    {% endfor %}
+    {% if next_page_url %}
+    <a class="button-link secondary pagination-link" href="{{ next_page_url }}">Siguiente</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

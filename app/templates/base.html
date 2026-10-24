@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CRM-FCE</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/consultas" aria-label="Ir a inicio">
+      <img src="/static/logo-crm-fce.svg" alt="CRM FCE">
+    </a>
+    {% if username %}
+    <nav class="nav">
+      <a href="/consultas">Consultas</a>
+      <a href="/auditoria">Auditor&iacute;a</a>
+      <a href="/ingreso">Ingreso</a>
+      <a href="/matriculation">Matriculación</a>
+      <a href="/electives">Electiva</a>
+      <a href="/converter">Conversor</a>
+      <a href="/lincu">Lincu</a>
+      <a href="/notifications">Notificaciones</a>
+      <a href="/imports">Importaciones</a>
+      <a href="/users/student">Estudiantes</a>
+      <a href="/users/teacher">Profesores</a>
+      <a href="/settings">Configuración</a>
+      <a href="/mail">Correo</a>
+      <form method="post" action="/logout">
+        <button class="ghost" type="submit">Salir</button>
+      </form>
+    </nav>
+    {% endif %}
+  </header>
+  <main class="shell {% block shell_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

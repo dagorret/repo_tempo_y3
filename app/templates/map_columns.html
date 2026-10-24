@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Asociar columnas</h1>
+    <p>
+      {{ filename }} - {{ "Estudiantes" if person_type == "student" else "Docentes" }} - {{ course_shortname or "sin curso" }}
+      {% if moodle_group_name %} - Grupo: {{ moodle_group_name }}{% endif %}
+    </p>
+  </div>
+  <a class="button-link secondary" href="/imports">Cancelar</a>
+</section>
+
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="grid two">
+  <form method="post" action="/imports/confirm" class="stack">
+    <input type="hidden" name="token" value="{{ token }}">
+
+    <label>
+      Documento
+      <select name="document_column" {% if person_type == "student" %}required{% endif %}>
+        <option value="">Sin asociar</option>
+        {% for column in columns %}
+        <option value="{{ column }}" {% if mapping.document == column %}selected{% endif %}>{{ column }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Nombre
+      <select name="first_name_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}
+        <option value="{{ column }}" {% if mapping.first_name == column %}selected{% endif %}>{{ column }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Apellido
+      <select name="last_name_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}
+        <option value="{{ column }}" {% if mapping.last_name == column %}selected{% endif %}>{{ column }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Nombre completo
+      <select name="full_name_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}
+        <option value="{{ column }}" {% if mapping.full_name == column %}selected{% endif %}>{{ column }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Email personal
+      <select name="email_column">
+        <option value="">Sin asociar</option>
+        {% for column in columns %}
+        <option value="{{ column }}" {% if mapping.email == column %}selected{% endif %}>{{ column }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit">Procesar importacion</button>
+  </form>
+
+  <aside class="status-panel">
+    <h2>Destino</h2>
+    <dl>
+      <div>
+        <dt>Teams</dt>
+        <dd>{% if person_type == "student" %}a + documento{% else %}inicial + apellido{% endif %}</dd>
+      </div>
+      <div>
+        <dt>Moodle</dt>
+        <dd>usuario Microsoft{% if moodle_group_name %} + grupo {{ moodle_group_name }}{% endif %}</dd>
+      </div>
+      <div>
+        <dt>Modo grupo</dt>
+        <dd>{{ "Estricto" if moodle_group_mode == "strict" else "Tolerante" }}</dd>
+      </div>
+      <div>
+        <dt>Crear grupo</dt>
+        <dd>{{ "Si" if moodle_group_autocreate else "No" }}</dd>
+      </div>
+      <div>
+        <dt>Correo</dt>
+        <dd>credenciales</dd>
+      </div>
+    </dl>
+    <p class="hint">Usa nombre y apellido separados, o nombre completo si la planilla trae todo junto. Si dice "Apellido y Nombre", con coma se separa mejor.</p>
+  </aside>
+</section>
+
+<section>
+  <h2>Vista previa</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% for column in columns %}
+          <th>{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in sample_rows %}
+        <tr>
+          {% for column in columns %}
+          <td>{{ row[column] }}</td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td>Sin filas para mostrar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

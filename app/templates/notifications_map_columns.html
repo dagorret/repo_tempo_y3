@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="split-title">
+  <div>
+    <h1>Asignar columnas (Notificaciones)</h1>
+    <p>{{ filename }}</p>
+  </div>
+  <a class="button-link secondary" href="/notifications">Cancelar</a>
+</section>
+
+{% if error %}
+<p class="alert">{{ error }}</p>
+{% endif %}
+
+<section class="grid two">
+  <form method="post" action="/notifications/confirm-mapping" class="stack status-panel">
+    <input type="hidden" name="token" value="{{ token }}">
+
+    <label>
+      Email (obligatorio)
+      <select name="email_column" required>
+        <option value="">Seleccionar</option>
+        {% for col in columns %}
+        <option value="{{ col }}" {% if mapping.email == col %}selected{% endif %}>{{ col }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Modalidad
+      <select name="modality_column">
+        <option value="">Sin asociar</option>
+        {% for col in columns %}
+        <option value="{{ col }}" {% if mapping.modality == col %}selected{% endif %}>{{ col }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      DNI
+      <select name="dni_column">
+        <option value="">Sin asociar</option>
+        {% for col in columns %}
+        <option value="{{ col }}" {% if mapping.dni == col %}selected{% endif %}>{{ col }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Apellido
+      <select name="last_name_column">
+        <option value="">Sin asociar</option>
+        {% for col in columns %}
+        <option value="{{ col }}" {% if mapping.last_name == col %}selected{% endif %}>{{ col }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Nombre
+      <select name="first_name_column">
+        <option value="">Sin asociar</option>
+        {% for col in columns %}
+        <option value="{{ col }}" {% if mapping.first_name == col %}selected{% endif %}>{{ col }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit">Usar este mapeo</button>
+  </form>
+
+  <aside class="status-panel">
+    <h2>Reglas</h2>
+    <ul class="hint-list">
+      <li>Email es obligatorio.</li>
+      <li>Modalidad permite filtrar A distancia / Presencial.</li>
+      <li>DNI, Nombre y Apellido se usan para personalizar mensajes.</li>
+    </ul>
+  </aside>
+</section>
+
+<section>
+  <h2>Vista previa</h2>
+  <div class="table-wrap">
+    <table class="imports-table">
+      <thead>
+        <tr>
+          {% for col in columns %}
+          <th>{{ col }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in sample_rows %}
+        <tr>
+          {% for col in columns %}
+          <td>{{ row[col] }}</td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td>Sin filas para mostrar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

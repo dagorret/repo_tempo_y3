@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="/static/audit.css">
+<header class="audit-toolbar"><h1>{{ person.apellido or '' }}, {{ person.nombre or 'Sin nombre' }}</h1><a href="/auditoria?run_id={{ run.id }}">Volver al informe</a></header>
+<section class="audit-band"><p>DNI {{ person.dni }} &middot; {{ person.upn }}</p><p>{{ person.estados_sial }} &middot; Actividad Microsoft 365/Teams (180 d&iacute;as): {{ person.actividad }}</p><p>{{ person.reason }}</p><p class="hint">{{ person.motivo or '' }}</p><p>&Uacute;ltima actividad informada: {{ person.ultima_actividad or 'Sin fecha informada' }}</p></section>
+{% if person.candidate and not person.deletion_eligible %}<p class="audit-warning">{{ person.deletion_block_reason }}</p>{% endif %}
+<section><h2>Inscripciones SIAL</h2>{% for c in person.inscripciones %}<p><strong>{{ c.carrera }}</strong><br>Modalidad: {{ 'Presencial' if c.modalidad == '1' else 'A distancia' if c.modalidad == '2' else c.modalidad }} &middot; {{ c.comisiones or 'Sin comision' }} &middot; {{ c.fecha_inscripcion }}</p>{% else %}<p>Sin inscripciones informadas.</p>{% endfor %}</section>
+<section><h2>Cursos Moodle ({{ courses|length }})</h2><p class="hint">Estado de consulta: {{ person.moodle_cursos_estado }} &middot; {{ person.moodle_consultado }}</p>{% for c in courses %}<p><strong>{{ c.codigo }}</strong> &middot; {{ c.nombre }}</p>{% endfor %}</section>
+<section><h2>Equipos Teams directos ({{ teams|length }})</h2><p class="hint">Estado de consulta: {{ person.teams_estado }} &middot; {{ person.teams_consultado }}</p>{% for t in teams %}<p>{{ t.nombre }} &middot; Archivado: {{ 'Sin dato' if t.archivado is none else 'Si' if t.archivado else 'No' }}</p>{% endfor %}</section>
+<section><h2>Incidencias</h2>{% for i in issues %}<p class="alert">{{ i.origen }}: {{ i.detalle }} ({{ i.codigo }})</p>{% else %}<p>Sin incidencias registradas.</p>{% endfor %}</section>
+{% endblock %}
